@@ -1,0 +1,3 @@
+[workspace]
+members = ["player_core"]
+resolver = "2"
