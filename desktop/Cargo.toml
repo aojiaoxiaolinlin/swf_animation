@@ -1,0 +1,15 @@
+[package]
+name = "desktop"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+winit = "0.29.15"
+wgpu = { workspace = true }
+url ={ workspace = true }
+futures = { workspace = true }
+anyhow = { workspace = true }
+ruffle_render = { path = "../../ruffle/render", features = ["clap"] }
+ruffle_render_wgpu = { path = "../../ruffle/render/wgpu", features = ["clap"] }
