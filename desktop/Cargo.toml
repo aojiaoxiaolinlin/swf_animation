@@ -7,9 +7,11 @@ edition = "2021"
 
 [dependencies]
 winit = "0.29.15"
+bytemuck = "1.15.0"
 wgpu = { workspace = true }
 url ={ workspace = true }
 futures = { workspace = true }
 anyhow = { workspace = true }
+player_core={path = "../core"}
 ruffle_render = { path = "../../ruffle/render", features = ["clap"] }
 ruffle_render_wgpu = { path = "../../ruffle/render/wgpu", features = ["clap"] }

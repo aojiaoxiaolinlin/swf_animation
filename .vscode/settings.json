@@ -1,8 +1,31 @@
 {
   "editor.tabSize": 4,
   "cSpell.words": [
+    "bitflags",
+    "blit",
+    "chrono",
+    "Deque",
+    "downsampling",
     "elwt",
+    "exactfit",
+    "fullscreen",
+    "fullscreeninteractive",
+    "letterboxed",
+    "multisample",
+    "multisampled",
+    "multiview",
+    "noborder",
+    "noscale",
+    "rngs",
+    "Seedable",
+    "showall",
+    "Srgb",
+    "Twips",
+    "unclipped",
+    "Unorm",
     "wgpu",
-    "winit"
+    "wgsl",
+    "winit",
+    "wstr"
   ],
 }

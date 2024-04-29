@@ -1,4 +1,5 @@
 mod app;
+mod movie;
 mod player;
 mod render_controller;
 use app::App;

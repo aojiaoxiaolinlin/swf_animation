@@ -1,18 +1,17 @@
-use std::rc::Rc;
+use std::{path::Path, rc::Rc};
 
+use crate::{player::PlayerController, render_controller::RenderController};
+use anyhow::Error;
 use url::Url;
 use winit::{
-    error::EventLoopError,
-    event::{self, Event, WindowEvent},
+    event::{Event, WindowEvent},
     event_loop::EventLoop,
     window::{Window, WindowBuilder},
 };
-use anyhow::Error;
-use crate::{player::PlayerController, render_controller::RenderController};
-const MOVIE_CLIP_URL: &str = "desktop/swf_file/swf_files/spirit2471src.swf";
+const MOVIE_CLIP_URL: &str = "desktop/swf_files/spirit2471src.swf";
 
 pub struct App {
-    movie_clip_url: Url,
+    movie_url: Url,
     player_controller: PlayerController,
     window: Rc<Window>,
     event_loop: Option<EventLoop<()>>,
@@ -21,20 +20,22 @@ pub struct App {
 impl App {
     pub fn new() -> Self {
         let current_dir = std::env::current_dir().expect("获取当前目录失败");
-
         let event_loop = EventLoop::new().unwrap();
         let window = WindowBuilder::new()
             .with_title("swf-player")
             .build(&event_loop)
             .unwrap();
         let window = Rc::new(window);
-        let render_controller = RenderController::new(window.clone()).unwrap();
-        let player_controller = PlayerController::new(
-            window.clone(),
-            render_controller.descriptors(),
-        );
+        let mut render_controller = RenderController::new(window.clone()).unwrap();
+        let mut player_controller =
+            PlayerController::new(window.clone(), render_controller.descriptors());
+        let movie_url = Url::from_file_path(current_dir.join(MOVIE_CLIP_URL)).unwrap();
+
+        render_controller.create_movie(&mut player_controller, movie_url.clone());
+
+
         Self {
-            movie_clip_url: Url::from_file_path(current_dir.join(MOVIE_CLIP_URL)).unwrap(),
+            movie_url,
             player_controller,
             window,
             event_loop: Some(event_loop),
@@ -53,6 +54,9 @@ impl App {
                     }
                     WindowEvent::RedrawRequested => {
                         dbg!("RedrawRequested");
+                        if let Some(mut player) = self.player_controller.get() {
+                            player.render();
+                        }
                     }
                     WindowEvent::Resized(_) => {
                         dbg!("Resized");

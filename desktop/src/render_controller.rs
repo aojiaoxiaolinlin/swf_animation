@@ -2,15 +2,21 @@ use std::{rc::Rc, sync::Arc};
 
 use anyhow::anyhow;
 use ruffle_render_wgpu::{
-    backend::request_adapter_and_device,
-    clap::PowerPreference,
-    descriptors::{self, Descriptors},
+    backend::request_adapter_and_device, clap::PowerPreference, descriptors::Descriptors,
 };
+use url::Url;
 use winit::window::Window;
+
+use crate::{
+    movie::{MovieView, MovieViewRenderer},
+    player::PlayerController,
+};
 
 pub struct RenderController {
     window: Rc<Window>,
     descriptors: Arc<Descriptors>,
+    movie_view_renderer: Arc<MovieViewRenderer>,
+    size: winit::dpi::PhysicalSize<u32>,
 }
 
 impl RenderController {
@@ -35,15 +41,40 @@ impl RenderController {
         //     adapter_info.name,
         //     adapter_info.device_type
         // );
+        let surface_format = surface
+            .get_capabilities(&adapter)
+            .formats
+            .first()
+            .cloned()
+            .expect("至少有一个支持表面格式");
+        let size = window.inner_size();
         let descriptors = Descriptors::new(instance, adapter, device, queue);
+        let movie_view_renderer = Arc::new(MovieViewRenderer::new(
+            &descriptors.device,
+            surface_format,
+            size.height,
+            window.scale_factor(),
+        ));
         Ok(RenderController {
             window,
             descriptors: Arc::new(descriptors),
+            movie_view_renderer,
+            size,
         })
     }
 
     pub fn descriptors(&self) -> Arc<Descriptors> {
         self.descriptors.clone()
+    }
+
+    pub fn create_movie(&mut self, player_controller: &mut PlayerController, movie_url: Url) {
+        let movie_view = MovieView::new(
+            self.movie_view_renderer.clone(),
+            &self.descriptors.device,
+            self.size.width,
+            self.size.height,
+        );
+        player_controller.create(&movie_url, movie_view);
     }
 }
 

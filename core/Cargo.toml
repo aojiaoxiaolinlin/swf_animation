@@ -6,3 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# thiserror = "1.0"
+bitflags = "2.5.0"
+url = { workspace = true }
+serde = { version = "1.0.198", features = ["derive"] }
+rand = { version = "0.8.5", features = [
+    "std",
+    "small_rng",
+], default-features = false }
+chrono = { version = "0.4.38", features = ["clock"] }
+swf = { path = "../../ruffle/swf" }
+ruffle_render = { path = "../../ruffle/render" }
+ruffle_video = { path = "../../ruffle/video" }
+ruffle_macros = { path = "../../ruffle/core/macros" }
+ruffle_wstr = { path = "../../ruffle/wstr" }
