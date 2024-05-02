@@ -1,6 +1,9 @@
 mod container;
 mod interactive;
+mod movie_clip;
 pub mod stage;
+mod graphic;
+
 use bitflags::bitflags;
 use ruffle_macros::enum_trait_object;
 use ruffle_render::{

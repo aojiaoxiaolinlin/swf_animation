@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 # thiserror = "1.0"
 bitflags = "2.5.0"
+weak-table = "0.3.2"
 url = { workspace = true }
 serde = { version = "1.0.198", features = ["derive"] }
 rand = { version = "0.8.5", features = [

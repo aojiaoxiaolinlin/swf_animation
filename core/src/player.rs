@@ -104,7 +104,7 @@ impl Player {
         let mut cache_draws = Vec::new();
         let mut render_context = RenderContext {
             renderer: &mut *self.renderer,
-            command: CommandList::new(),
+            commands: CommandList::new(),
             cache_draws: &mut cache_draws,
             transform_stack: &mut self.transform_stack,
             is_offscreen: false,
@@ -118,7 +118,7 @@ impl Player {
                 };
         self.stage.render(&mut render_context);
         dbg!("render");
-        render_context.renderer.submit_frame(background_color, render_context.command, Vec::new());
+        render_context.renderer.submit_frame(background_color, render_context.commands, Vec::new());
     }
 
     pub fn mutate_with_update_context(&mut self, _context: &mut UpdateContext) {

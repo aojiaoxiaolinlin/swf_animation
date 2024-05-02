@@ -4,9 +4,10 @@ use rand::rngs::SmallRng;
 use ruffle_render::{backend::{BitmapCacheEntry, RenderBackend}, commands::CommandList, transform::TransformStack};
 use ruffle_video::backend::VideoBackend;
 
-use crate::{frame_lifecycle::FramePhase, Player, Stage};
+use crate::{frame_lifecycle::FramePhase, library::Library, Player, Stage};
 
 pub struct UpdateContext<'a> {
+    // pub library: &'a mut Library,
     pub renderer: &'a mut dyn RenderBackend,
     pub video: &'a mut dyn VideoBackend,
     pub rng: &'a mut SmallRng,
@@ -31,7 +32,7 @@ pub struct UpdateContext<'a> {
 
 pub struct RenderContext<'a>{
     pub renderer: &'a mut dyn RenderBackend,
-    pub command: CommandList,
+    pub commands: CommandList,
     pub cache_draws: &'a mut Vec<BitmapCacheEntry>,
     pub transform_stack: &'a mut TransformStack,
     pub is_offscreen: bool,

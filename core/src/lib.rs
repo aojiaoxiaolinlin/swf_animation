@@ -7,6 +7,9 @@ mod player;
 mod tag_utils;
 mod types;
 mod context;
+mod drawing;
+mod library;
+mod character;
 
 pub use player::{Player, PlayerBuilder};
 pub use display_object::stage::Stage;

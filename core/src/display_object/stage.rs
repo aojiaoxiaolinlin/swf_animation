@@ -54,7 +54,7 @@ pub struct Stage(Rc<RefCell<StageData>>);
 impl Debug for Stage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Stage")
-            .field("ptr", &self.0.clone().borrow().swf_movie.header())
+            .field("ptr", &self.0.borrow().swf_movie.header())
             .finish()
     }
 }
