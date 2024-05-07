@@ -2068,6 +2068,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "swf_parse"
+version = "0.1.0"
+dependencies = [
+ "ruffle_render",
+ "ruffle_wstr",
+ "swf",
+ "thiserror",
+ "weak-table",
+]
+
+[[package]]
 name = "syn"
 version = "1.0.109"
 source = "registry+https://github.com/rust-lang/crates.io-index"
