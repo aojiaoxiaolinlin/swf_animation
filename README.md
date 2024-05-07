@@ -1,4 +1,4 @@
-# SWF Animation Render And Control By Rust
+# SWF Animation Rendering And Control By Rust
 
 ## To make better use of SWF resources
 
