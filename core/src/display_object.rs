@@ -1,6 +1,6 @@
 mod container;
 mod interactive;
-mod movie_clip;
+pub mod movie_clip;
 pub mod stage;
 mod graphic;
 

@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "desktop"]
+members = ["core", "desktop", "swf_parse"]
 default-members = ["desktop"]
 resolver = "2"
 

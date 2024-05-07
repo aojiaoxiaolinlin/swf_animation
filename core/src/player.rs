@@ -3,7 +3,7 @@ use std::{
 };
 
 use crate::{
-    config::Letterbox, context::{RenderContext, UpdateContext}, display_object::stage::WindowMode, frame_lifecycle::FramePhase, loader::Loader, locale::get_current_date_time, tag_utils::SwfMovie, Stage
+    config::Letterbox, context::{RenderContext, UpdateContext}, display_object::{movie_clip::MovieClip, stage::WindowMode}, frame_lifecycle::FramePhase, loader::Loader, locale::get_current_date_time, tag_utils::SwfMovie, Stage
 };
 use rand::{rngs::SmallRng, SeedableRng};
 use ruffle_render::{
@@ -140,6 +140,7 @@ impl Player {
 
     pub fn set_root_movie(&mut self, movie: SwfMovie) {
         self.swf = Arc::new(movie);
+        MovieClip::new(self.swf.clone()).load();
     }
 
     pub fn load_root_movie(&mut self, url: &Url) {
