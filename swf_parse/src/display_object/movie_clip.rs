@@ -23,9 +23,10 @@ use swf::{
     FrameLabelData, TagCode,
 };
 
-use super::{graphic::Graphic, morph_shape::MorphShape};
+use super::{graphic::Graphic, morph_shape::MorphShape, DisplayObjectBase};
 type FrameNumber = u16;
 pub struct MovieClip {
+    // pub base:DisplayObjectBase,
     static_data: MovieClipData,
 }
 

@@ -11,3 +11,4 @@ ruffle_render = { path = "../../ruffle/render" }
 ruffle_wstr = { path = "../../ruffle/wstr" }
 thiserror = "1.0"
 weak-table = "0.3.2"
+bitflags = "2.5.0"

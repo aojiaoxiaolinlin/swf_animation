@@ -3,6 +3,7 @@ mod context;
 mod library;
 mod display_object;
 mod string;
+mod types;
 pub mod tag_utils;
 
 use std::fs::read;
