@@ -13,3 +13,4 @@ ruffle_macros = { path = "../../ruffle/core/macros" }
 thiserror = "1.0"
 weak-table = "0.3.2"
 bitflags = "2.5.0"
+serde = { version = "1.0.198", features = ["derive"] }

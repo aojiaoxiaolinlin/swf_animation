@@ -23,6 +23,9 @@ impl Library {
             .entry(movie.clone())
             .or_insert_with(|| MovieLibrary::new(movie))
     }
+    pub fn length(&self,swf:&Arc<SwfMovie>) {
+        dbg!(self.movie_libraries.get(swf).unwrap().length());
+    }
 }
 pub struct MovieLibrary {
     characters: HashMap<CharacterId, Character>,
@@ -48,8 +51,8 @@ impl MovieLibrary {
     pub fn contains_character(&self, id: CharacterId) -> bool {
         self.characters.contains_key(&id)
     }
-    pub fn character_by_id(&self, id: CharacterId) -> Option<&Character> {
-        self.characters.get(&id)
+    pub fn character_by_id(&mut self, id: CharacterId) -> Option<&mut Character> {
+        self.characters.get_mut(&id)
     }
 
     pub fn jpeg_tables(&self) -> Option<&[u8]> {
@@ -65,5 +68,9 @@ impl MovieLibrary {
         } else {
             Some(remove_invalid_jpeg_data(data).to_vec())
         };
+    }
+
+    pub fn length(&self) -> usize {
+        self.characters.len()
     }
 }

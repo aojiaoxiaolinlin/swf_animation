@@ -46,20 +46,12 @@ impl MovieClip {
     }
     pub fn new_with_data(
         id:CharacterId,
+        swf:SwfSlice,
         num_frames:FrameNumber,
     )->Self{
         Self{
             base:Default::default(),
-            static_data:MovieClipData{
-                id,
-                swf:SwfSlice::from(Arc::new(SwfMovie::new(num_frames))),
-                total_frames:num_frames,
-                frame_labels:Vec::new(),
-                frame_labels_map:HashMap::new(),
-                scene_labels:Vec::new(),
-                scene_labels_map:HashMap::new(),
-                frame_range:Default::default(),
-            }
+            static_data:MovieClipData::with_data(id, swf, num_frames)
         }
     }
     pub fn parse(&mut self) {
@@ -277,7 +269,7 @@ impl MovieClip {
 
                 TagCode::DefineSprite => {
                     println!("Define sprite");
-                    self.read_define_sprite(context, tag_reader);
+                    self.read_define_sprite(context, tag_reader).unwrap();
                 }
                 TagCode::PlaceObject => {
                     println!("Place object");
@@ -321,7 +313,7 @@ impl MovieClip {
         let num_frames = tag_reader.read_u16()?;
         let num_read = tag_reader.pos(start);
 
-        let movie_clip = MovieClip::new_with_data(id, num_frames);
+        let movie_clip = MovieClip::new_with_data(id,self.static_data.swf.clone(), num_frames);
         context.library.library_for_movie_mut(self.movie()).register_character(id, Character::MovieClip(movie_clip));
 
         self.read(context, tag_reader);
@@ -567,7 +559,7 @@ impl MovieClip {
         Ok(())
     }
     #[inline]
-    fn show_frame(&mut self, reader: &mut Reader) -> Result<(), Error> {
+    fn show_frame(&mut self, _reader: &mut Reader) -> Result<(), Error> {
         let cur_frame = self.static_data.cur_frame();
         self.static_data.frame_range.cur_frame = cur_frame + 1;
         Ok(())
@@ -575,7 +567,7 @@ impl MovieClip {
     #[inline]
     fn frame_label(
         &mut self,
-        context: &mut UpdateContext,
+        _context: &mut UpdateContext,
         reader: &mut Reader,
     ) -> Result<(), Error> {
         let frame_label = reader.read_frame_label()?;

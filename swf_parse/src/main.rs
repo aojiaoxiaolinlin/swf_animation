@@ -1,11 +1,12 @@
 mod binary_data;
 mod character;
+pub mod config;
 mod context;
-mod library;
 mod display_object;
+mod library;
 mod string;
-mod types;
 pub mod tag_utils;
+mod types;
 
 use std::fs::read;
 

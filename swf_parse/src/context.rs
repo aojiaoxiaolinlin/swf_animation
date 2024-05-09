@@ -2,6 +2,8 @@ use std::sync::Arc;
 
 // use ruffle_render::backend::RenderBackend;
 
+use ruffle_render::backend::RenderBackend;
+
 use crate::{library::Library, tag_utils::SwfMovie};
 
 pub struct UpdateContext{
