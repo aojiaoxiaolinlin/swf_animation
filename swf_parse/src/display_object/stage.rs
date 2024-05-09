@@ -192,8 +192,108 @@ impl Stage {
             || (self.letterbox == Letterbox::Fullscreen && self.is_full_screen()))
     }
     pub fn build_matrices(&mut self, context:&mut UpdateContext){
+        let scale_mode = self.scale_mode;
+        let align = self.align;
+        let prev_stage_size = self.stage_size;
+        let viewport_size = context.renderer.viewport_dimensions();
 
-    }
+        self.stage_size = if self.scale_mode == StageScaleMode::NoScale {
+            let width = f64::from(viewport_size.width)/viewport_size.scale_factor;
+            let height = f64::from(viewport_size.height)/viewport_size.scale_factor;
+            (width as u32, height as u32)
+        }else{
+            self.movie_size
+        };
+
+        let stage_size_changed = prev_stage_size != self.stage_size;
+        let (movie_width, movie_height) = self.movie_size;
+        let movie_width = movie_width as f64;
+        let movie_height = movie_height as f64;
+
+        let viewport_width = viewport_size.width as f64;
+        let viewport_height = viewport_size.height as f64;
+
+        let movie_aspect = movie_width / movie_height;
+        let viewport_aspect = viewport_width / viewport_height;
+
+        let (scale_x,scale_y) = match scale_mode {
+            StageScaleMode::ShowAll => {
+                // Keep aspect ratio, padding the edges.
+                let scale = if viewport_aspect > movie_aspect {
+                    viewport_height / movie_height
+                } else {
+                    viewport_width / movie_width
+                };
+                (scale, scale)
+            }
+            StageScaleMode::NoBorder => {
+                 // Keep aspect ratio, cropping off the edges.
+                let scale = if viewport_aspect < movie_aspect {
+                    viewport_height / movie_height
+                } else {
+                    viewport_width / movie_width
+                };
+                (scale, scale)
+            }
+            StageScaleMode::ExactFit => (viewport_width / movie_width, viewport_height / movie_height),
+
+            StageScaleMode::NoScale => (viewport_size.scale_factor, viewport_size.scale_factor),
+        };
+
+        let width_delta = viewport_width - movie_width * scale_x;
+        let height_delta = viewport_height - movie_height * scale_y;
+
+        // The precedence is important here to match Flash behavior.
+        // L > R > "", T > B > "".
+        let tx = if align.contains(StageAlign::LEFT) {
+            0.0
+        } else if align.contains(StageAlign::RIGHT) {
+            width_delta
+        } else {
+            width_delta / 2.0
+        };
+        let ty = if align.contains(StageAlign::TOP) {
+            0.0
+        } else if align.contains(StageAlign::BOTTOM) {
+            height_delta
+        } else {
+            height_delta / 2.0
+        };
+        self.viewport_matrix = Matrix {
+            a: scale_x as f32,
+            b: 0.0,
+            c: 0.0,
+            d: scale_y as f32,
+            tx: Twips::from_pixels(tx),
+            ty: Twips::from_pixels(ty),
+        };
+        self.view_bounds = if self.should_letterbox() {
+            // Letterbox: movie area
+            Rectangle {
+                x_min: Twips::ZERO,
+                y_min: Twips::ZERO,
+                x_max: Twips::from_pixels(movie_width),
+                y_max: Twips::from_pixels(movie_height),
+            }
+        } else {
+            // No letterbox: full visible stage area
+            let margin_left = tx / scale_x;
+            let margin_right = (width_delta - tx) / scale_x;
+            let margin_top = ty / scale_y;
+            let margin_bottom = (height_delta - ty) / scale_y;
+            Rectangle {
+                x_min: Twips::from_pixels(-margin_left),
+                y_min: Twips::from_pixels(-margin_top),
+                x_max: Twips::from_pixels(movie_width + margin_right),
+                y_max: Twips::from_pixels(movie_height + margin_bottom),
+            }
+        };
+
+        // Fire resize handler if stage size has changed.
+        if scale_mode == StageScaleMode::NoScale && stage_size_changed {
+            // self.fire_resize_event(context);
+        }
+    }   
 }
 
 pub struct ParseEnumError;
