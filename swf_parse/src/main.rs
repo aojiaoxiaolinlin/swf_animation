@@ -1,3 +1,4 @@
+mod binary_data;
 mod character;
 mod context;
 mod library;

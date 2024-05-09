@@ -1,20 +1,27 @@
-pub mod movie_clip;
-pub mod morph_shape;
 pub mod graphic;
+pub mod morph_shape;
+pub mod movie_clip;
+use std::rc::Rc;
+
 use bitflags::bitflags;
 
-use ruffle_render::{backend::RenderBackend, bitmap::{BitmapHandle, BitmapInfo}, blend::ExtendedBlendMode, filters::Filter, matrix::Matrix, pixel_bender::PixelBenderShaderHandle, transform::Transform};
+use ruffle_macros::enum_trait_object;
+use ruffle_render::{
+    backend::RenderBackend,
+    bitmap::{BitmapHandle, BitmapInfo},
+    blend::ExtendedBlendMode,
+    filters::{self, Filter},
+    matrix::Matrix,
+    pixel_bender::PixelBenderShaderHandle,
+    transform::Transform,
+};
 use ruffle_wstr::WString;
 use swf::{Color, Depth, Point, Rectangle, Twips};
 
 use crate::types::{Degrees, Percent};
 
-pub trait TDisplayObject {
-    // fn base_mut(&mut self) -> &mut DisplayObjectBase;
-    fn set_scaling_grid(&self,rect:Rectangle<Twips>){
-        // self.base_mut()
-    }
-}
+use self::movie_clip::MovieClip;
+
 bitflags! {
     /// Bit flags used by `DisplayObject`.
     #[derive(Clone, Copy)]
@@ -181,24 +188,25 @@ impl BitmapCache {
 }
 
 pub struct DisplayObjectBase {
+    parent: Option<Rc<DisplayObject>>,
     place_frame: u16,
-    depth:Depth,
-    transform:Transform,
-    name:Option<WString>,
-    filters:Vec<Filter>,
-    clip_depth:Depth,
+    depth: Depth,
+    transform: Transform,
+    name: Option<WString>,
+    filters: Vec<Filter>,
+    clip_depth: Depth,
 
-    rotation:Degrees,
-    scale_x:Percent,
-    scale_y:Percent,
+    rotation: Degrees,
+    scale_x: Percent,
+    scale_y: Percent,
 
-    skew:f64,
+    skew: f64,
 
-    // next_avm1_clip: Option<DisplayObject>
+    next_avm1_clip: Option<Rc<DisplayObject>>,
 
-    // masker:Option<DisplayObject>
+    masker: Option<Rc<DisplayObject>>,
 
-    // masking:Option<DisplayObject>
+    masking: Option<Rc<DisplayObject>>,
 
     /// 渲染此显示对象时使用的混合模式。
     /// 除默认 BlendMode::Normal 之外的其他值都会隐式地导致 "缓存即位图 "行为。
@@ -215,7 +223,7 @@ pub struct DisplayObjectBase {
     /// `internal`滚动矩形用于渲染和`localToGlobal`等方法。这是从`pre_render`更新而来。
     scroll_rect: Option<Rectangle<Twips>>,
     /// 下一个 "滚动矩形，我们将把它从 "pre_render "复制到 "scroll_rect",
-    /// ActionScript 的 "DisplayObject.scrollRect "getter 使用它，可以立即看到 
+    /// ActionScript 的 "DisplayObject.scrollRect "getter 使用它，可以立即看到
     /// 变化（无需等待渲染）。
     next_scroll_rect: Rectangle<Twips>,
 
@@ -225,5 +233,44 @@ pub struct DisplayObjectBase {
     ///此显示对象是否应缓存为位图，如果是，则缓存本身。
     /// 无表示未缓存，有表示已缓存。
     ///  用于缓存的位图数据。
-    cache:Option<BitmapCache>
+    cache: Option<BitmapCache>,
+}
+impl Default for DisplayObjectBase {
+    fn default() -> Self {
+        Self {
+            parent: Default::default(),
+            place_frame: Default::default(),
+            depth: Default::default(),
+            transform: Default::default(),
+            name: None,
+            filters: Default::default(),
+            clip_depth: Default::default(),
+            rotation: Degrees::from_radians(0.0),
+            scale_x: Percent::from_unit(1.0),
+            scale_y: Percent::from_unit(1.0),
+            skew: 0.0,
+            next_avm1_clip: None,
+            masker: None,
+            masking: None,
+            blend_mode: Default::default(),
+            blend_shader: None,
+            opaque_background: Default::default(),
+            flags: DisplayObjectFlags::VISIBLE,
+            scroll_rect: None,
+            next_scroll_rect: Default::default(),
+            scaling_grid: Default::default(),
+            cache: None,
+        }
+    }
+}
+#[enum_trait_object(
+    pub enum DisplayObject {
+        MovieClip(MovieClip)
+    }
+)]
+pub trait TDisplayObject {
+    fn base_mut(&mut self) -> &mut DisplayObjectBase;
+    fn set_scaling_grid(&mut self, rect: Rectangle<Twips>) {
+        self.base_mut().scaling_grid = rect;
+    }
 }

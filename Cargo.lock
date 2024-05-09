@@ -2072,6 +2072,7 @@ name = "swf_parse"
 version = "0.1.0"
 dependencies = [
  "bitflags 2.5.0",
+ "ruffle_macros",
  "ruffle_render",
  "ruffle_wstr",
  "swf",

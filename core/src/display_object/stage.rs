@@ -162,7 +162,7 @@ impl Stage {
         self.0.borrow_mut().window_mode = window_mode;
     }
     pub fn view_bounds(&self) -> Rectangle<Twips> {
-        self.0.borrow().view_bounds
+        self.0.borrow().view_bounds.clone()
     }
     /// Determine if we should letterbox the stage content.
     fn should_letterbox(self) -> bool {

@@ -1,14 +1,14 @@
 use core::str;
 use std::{
+    borrow::Cow,
+    cell::RefCell,
     collections::{hash_map, HashMap},
     io::Read,
     sync::Arc,
 };
 
 use crate::{
-    character::{self, Character},
-    library,
-    tag_utils::{Error, SwfMovie},
+    binary_data::{self, BinaryData}, character::{self, Character, CompressedBitmap}, library, tag_utils::{Error, SwfMovie}
 };
 use crate::{
     context::{self, UpdateContext},
@@ -20,19 +20,20 @@ use ruffle_wstr::WString;
 use swf::{
     extensions::ReadSwfExt,
     read::{ControlFlow, Reader},
-    FrameLabelData, TagCode,
+    DefineBitsLossless, FrameLabelData, TagCode,
 };
 
-use super::{graphic::Graphic, morph_shape::MorphShape, DisplayObjectBase};
+use super::{graphic::Graphic, morph_shape::MorphShape, DisplayObjectBase, TDisplayObject};
 type FrameNumber = u16;
 pub struct MovieClip {
-    // pub base:DisplayObjectBase,
+    pub base: DisplayObjectBase,
     static_data: MovieClipData,
 }
 
 impl MovieClip {
     pub fn new(data: Vec<u8>) -> Self {
         Self {
+            base: Default::default(),
             static_data: MovieClipData {
                 swf: SwfSlice::from(Arc::new(SwfMovie::from_data(&data).unwrap())),
                 total_frames: 1,
@@ -69,19 +70,21 @@ impl MovieClip {
                     self.csm_text_settings(context, tag_reader).unwrap();
                 }
                 TagCode::DefineBinaryData => {
-                    self.define_binary_data(tag_reader).unwrap();
+                    self.define_binary_data(context, tag_reader).unwrap();
                 }
                 TagCode::DefineBits => {
-                    self.define_bits(tag_reader).unwrap();
+                    self.define_bits(context, tag_reader).unwrap();
                 }
                 TagCode::DefineBitsJpeg2 => {
-                    self.define_bits_jpeg_2(tag_reader).unwrap();
+                    self.define_bits_jpeg_2(context, tag_reader).unwrap();
                 }
                 TagCode::DefineBitsJpeg3 => {
-                    self.define_bits_jpeg_3_or_4(tag_reader, 3).unwrap();
+                    self.define_bits_jpeg_3_or_4(context, tag_reader, 3)
+                        .unwrap();
                 }
                 TagCode::DefineBitsJpeg4 => {
-                    println!("Define bits jpeg4");
+                    self.define_bits_jpeg_3_or_4(context, tag_reader, 4)
+                        .unwrap();
                 }
                 TagCode::DefineButton => {
                     println!("Define button");
@@ -163,7 +166,7 @@ impl MovieClip {
                 }
 
                 TagCode::JpegTables => {
-                    self.jpeg_tables(tag_reader).unwrap();
+                    self.jpeg_tables(context, tag_reader).unwrap();
                 }
 
                 TagCode::Metadata => {
@@ -195,10 +198,10 @@ impl MovieClip {
                     println!("Debug id");
                 }
                 TagCode::DefineBitsLossless => {
-                    self.define_bits_lossless(tag_reader, 1).unwrap();
+                    self.define_bits_lossless(context, tag_reader, 1).unwrap();
                 }
                 TagCode::DefineBitsLossless2 => {
-                    self.define_bits_lossless(tag_reader, 2).unwrap();
+                    self.define_bits_lossless(context, tag_reader, 2).unwrap();
                 }
 
                 TagCode::DefineScalingGrid => {
@@ -249,7 +252,7 @@ impl MovieClip {
                 }
 
                 TagCode::DefineSceneAndFrameLabelData => {
-                    self.scene_and_frame_labels(context, tag_reader).unwrap();
+                    self.scene_and_frame_labels(tag_reader).unwrap();
                 }
 
                 TagCode::FrameLabel => {
@@ -334,23 +337,56 @@ impl MovieClip {
         Ok(())
     }
     #[inline]
-    fn define_bits(&mut self, reader: &mut Reader) -> Result<(), Error> {
+    fn define_bits(
+        &mut self,
+        context: &mut UpdateContext,
+        reader: &mut Reader,
+    ) -> Result<(), Error> {
         let id = reader.read_u16()?;
         let jpeg_data = reader.read_slice_to_end();
-        // let jpeg_data = ruffle_render::utils::glue_tables_to_jpeg(jpeg_data, jpeg_tables).into_owned();
+        let jpeg_tables = context
+            .library
+            .library_for_movie_mut(self.movie())
+            .jpeg_tables();
+        let jpeg_data =
+            ruffle_render::utils::glue_tables_to_jpeg(jpeg_data, jpeg_tables).into_owned();
         let (width, height) = ruffle_render::utils::decode_define_bits_jpeg_dimensions(&jpeg_data)?;
         dbg!(width, height);
         Ok(())
     }
     #[inline]
-    fn define_bits_jpeg_2(&mut self, reader: &mut Reader) -> Result<(), Error> {
+    fn define_bits_jpeg_2(
+        &mut self,
+        context: &mut UpdateContext,
+        reader: &mut Reader,
+    ) -> Result<(), Error> {
         let id = reader.read_u16()?;
         let jpeg_data = reader.read_slice_to_end();
         let (width, height) = ruffle_render::utils::decode_define_bits_jpeg_dimensions(&jpeg_data)?;
+        context
+            .library
+            .library_for_movie_mut(self.movie())
+            .register_character(
+                id,
+                Character::Bitmap {
+                    compressed: character::CompressedBitmap::Jpeg {
+                        data: jpeg_data.to_vec(),
+                        alpha: None,
+                        width,
+                        height,
+                    },
+                    handle: RefCell::new(None),
+                },
+            );
         Ok(())
     }
     #[inline]
-    fn define_bits_jpeg_3_or_4(&mut self, reader: &mut Reader, version: u8) -> Result<(), Error> {
+    fn define_bits_jpeg_3_or_4(
+        &mut self,
+        context: &mut UpdateContext,
+        reader: &mut Reader,
+        version: u8,
+    ) -> Result<(), Error> {
         let id = reader.read_u16()?;
         let jpeg_len = reader.read_u32()? as usize;
         if version == 4 {
@@ -359,11 +395,48 @@ impl MovieClip {
         let jpeg_data = reader.read_slice(jpeg_len)?;
         let alpha_data = reader.read_slice_to_end();
         let (width, height) = ruffle_render::utils::decode_define_bits_jpeg_dimensions(&jpeg_data)?;
+        context
+            .library
+            .library_for_movie_mut(self.movie())
+            .register_character(
+                id,
+                Character::Bitmap {
+                    compressed: CompressedBitmap::Jpeg {
+                        data: jpeg_data.to_owned(),
+                        alpha: Some(alpha_data.to_owned()),
+                        width,
+                        height,
+                    },
+                    handle: RefCell::new(None),
+                },
+            );
         Ok(())
     }
     #[inline]
-    fn define_bits_lossless(&mut self, reader: &mut Reader, version: u8) -> Result<(), Error> {
+    fn define_bits_lossless(
+        &mut self,
+        context: &mut UpdateContext,
+        reader: &mut Reader,
+        version: u8,
+    ) -> Result<(), Error> {
         let define_bits_lossless = reader.read_define_bits_lossless(version)?;
+        context
+            .library
+            .library_for_movie_mut(self.movie())
+            .register_character(
+                id,
+                Character::Bitmap {
+                    compressed: CompressedBitmap::Lossless(DefineBitsLossless {
+                        id: define_bits_lossless.id,
+                        format: define_bits_lossless.format,
+                        width: define_bits_lossless.width,
+                        height: define_bits_lossless.height,
+                        version: define_bits_lossless.version,
+                        data: Cow::Owned(define_bits_lossless.data.into_owned()),
+                    }),
+                    handle: RefCell::new(None),
+                },
+            );
         Ok(())
     }
     #[inline]
@@ -393,7 +466,7 @@ impl MovieClip {
         let library = context.library.library_for_movie_mut(self.movie());
         if let Some(character) = library.character_by_id(id) {
             if let Character::MovieClip(clip) = character {
-                // clip.set_scaling_grid(rect);
+                clip.set_scaling_grid(rect);
             } else {
                 println!("Movie clip {}: Scaling grid on non-movie clip", id);
             }
@@ -404,12 +477,12 @@ impl MovieClip {
     fn define_video_stream(&mut self, reader: &mut Reader) -> Result<(), Error> {
         let video_stream = reader.read_define_video_stream()?;
         let id = video_stream.id;
+        // let video = Video::from_swf_tag(self.movie(),video_stream);
         Ok(())
     }
     #[inline]
     fn scene_and_frame_labels(
         &mut self,
-        context: &mut UpdateContext,
         reader: &mut Reader,
     ) -> Result<(), Error> {
         let static_data = &mut self.static_data;
@@ -454,13 +527,20 @@ impl MovieClip {
         Ok(())
     }
     #[inline]
-    fn jpeg_tables(&mut self, reader: &mut Reader) -> Result<(), Error> {
+    fn jpeg_tables(&mut self,context:&mut UpdateContext, reader: &mut Reader) -> Result<(), Error> {
         let jpeg_data = reader.read_slice_to_end();
+        context
+            .library
+            .library_for_movie_mut(self.movie())
+            .set_jpeg_tables(jpeg_data);
         Ok(())
     }
     #[inline]
-    fn define_binary_data(&mut self, reader: &mut Reader) -> Result<(), Error> {
+    fn define_binary_data(&mut self,context:& mut UpdateContext, reader: &mut Reader) -> Result<(), Error> {
         let tag_data = reader.read_define_binary_data()?;
+        let binary_data = BinaryData::from_swf_tag(self.movie(), &tag_data);
+        context.library.library_for_movie_mut(self.movie())
+        .register_character(tag_data.id, Character::BinaryData(binary_data));
         Ok(())
     }
     #[inline]
@@ -501,7 +581,11 @@ impl MovieClip {
         self.static_data.swf.movie.clone()
     }
 }
-
+impl TDisplayObject for MovieClip {
+    fn base_mut(&mut self) -> &mut DisplayObjectBase {
+        &mut self.base
+    }
+}
 pub struct MovieClipData {
     // swf_movie: Arc<SwfMovie>,
     swf: SwfSlice,

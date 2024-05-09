@@ -3,6 +3,7 @@ use std::{
     sync::{Arc, Weak},
 };
 
+use ruffle_render::utils::remove_invalid_jpeg_data;
 use swf::CharacterId;
 use weak_table::PtrWeakKeyHashMap;
 
@@ -40,7 +41,7 @@ impl MovieLibrary {
     pub fn register_character(&mut self, id: CharacterId, character: Character) {
         if !self.contains_character(id) {
             self.characters.insert(id, character);
-        }else {
+        } else {
             dbg!("Character already exists");
         }
     }
@@ -49,5 +50,20 @@ impl MovieLibrary {
     }
     pub fn character_by_id(&self, id: CharacterId) -> Option<&Character> {
         self.characters.get(&id)
+    }
+
+    pub fn jpeg_tables(&self) -> Option<&[u8]> {
+        self.jpeg_tables.as_ref().map(|data| &data[..])
+    }
+    pub fn set_jpeg_tables(&mut self, data: &[u8]) {
+        if self.jpeg_tables.is_some() {
+            dbg!("SWF contains multiple JPEGTables tags");
+            return;
+        }
+        self.jpeg_tables = if data.is_empty() {
+            None
+        } else {
+            Some(remove_invalid_jpeg_data(data).to_vec())
+        };
     }
 }
