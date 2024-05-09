@@ -1,4 +1,4 @@
-use core::str;
+use core::{num, str};
 use std::{
     borrow::Cow,
     cell::RefCell,
@@ -18,9 +18,7 @@ use crate::{
 };
 use ruffle_wstr::WString;
 use swf::{
-    extensions::ReadSwfExt,
-    read::{ControlFlow, Reader},
-    DefineBitsLossless, FrameLabelData, TagCode,
+    extensions::ReadSwfExt, read::{ControlFlow, Reader}, CharacterId, DefineBitsLossless, FrameLabelData, TagCode
 };
 
 use super::{graphic::Graphic, morph_shape::MorphShape, DisplayObjectBase, TDisplayObject};
@@ -35,6 +33,7 @@ impl MovieClip {
         Self {
             base: Default::default(),
             static_data: MovieClipData {
+                id: 0,
                 swf: SwfSlice::from(Arc::new(SwfMovie::from_data(&data).unwrap())),
                 total_frames: 1,
                 frame_labels: Vec::new(),
@@ -45,7 +44,24 @@ impl MovieClip {
             },
         }
     }
-
+    pub fn new_with_data(
+        id:CharacterId,
+        num_frames:FrameNumber,
+    )->Self{
+        Self{
+            base:Default::default(),
+            static_data:MovieClipData{
+                id,
+                swf:SwfSlice::from(Arc::new(SwfMovie::new(num_frames))),
+                total_frames:num_frames,
+                frame_labels:Vec::new(),
+                frame_labels_map:HashMap::new(),
+                scene_labels:Vec::new(),
+                scene_labels_map:HashMap::new(),
+                frame_range:Default::default(),
+            }
+        }
+    }
     pub fn parse(&mut self) {
         let swf_movie = self.static_data.swf.clone().movie.clone();
         let mut reader = Reader::new(&swf_movie.data(), swf_movie.version());
@@ -299,10 +315,17 @@ impl MovieClip {
         reader.read_tag_code(tag_callback);
     }
     #[inline]
-    fn read_define_sprite(&mut self, context: &mut UpdateContext, tag_reader: &mut Reader) {
-        let _id = tag_reader.read_u16();
-        let _num_frames = tag_reader.read_u16();
+    fn read_define_sprite(&mut self, context: &mut UpdateContext, tag_reader: &mut Reader)-> Result<(), Error> {
+        let start = tag_reader.as_slice();
+        let id = tag_reader.read_u16()?;
+        let num_frames = tag_reader.read_u16()?;
+        let num_read = tag_reader.pos(start);
+
+        let movie_clip = MovieClip::new_with_data(id, num_frames);
+        context.library.library_for_movie_mut(self.movie()).register_character(id, Character::MovieClip(movie_clip));
+
         self.read(context, tag_reader);
+        Ok(())
     }
     #[inline]
     fn csm_text_settings(
@@ -424,7 +447,7 @@ impl MovieClip {
             .library
             .library_for_movie_mut(self.movie())
             .register_character(
-                id,
+                define_bits_lossless.id,
                 Character::Bitmap {
                     compressed: CompressedBitmap::Lossless(DefineBitsLossless {
                         id: define_bits_lossless.id,
@@ -588,6 +611,7 @@ impl TDisplayObject for MovieClip {
 }
 pub struct MovieClipData {
     // swf_movie: Arc<SwfMovie>,
+    id: CharacterId,
     swf: SwfSlice,
     frame_labels: Vec<(FrameNumber, WString)>,
     frame_labels_map: HashMap<WString, FrameNumber>,
@@ -599,6 +623,19 @@ pub struct MovieClipData {
 impl MovieClipData {
     fn cur_frame(&self) -> FrameNumber {
         self.frame_range.cur_frame
+    }
+    fn with_data(id:CharacterId,swf:SwfSlice,total_frames:FrameNumber)->Self{
+        Self{
+            id,
+            swf,
+            frame_labels:Vec::new(),
+            frame_labels_map:HashMap::new(),
+            total_frames,
+            scene_labels:Vec::new(),
+            scene_labels_map:HashMap::new(),
+            frame_range:Default::default(),
+        }
+
     }
 }
 #[derive(Clone)]
