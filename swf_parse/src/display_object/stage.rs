@@ -1,5 +1,6 @@
 use bitflags::bitflags;
-use ruffle_render::{matrix::Matrix, quality::StageQuality};
+use ruffle_render::commands::CommandHandler;
+use ruffle_render::{backend::ViewportDimensions, matrix::Matrix, quality::StageQuality};
 use ruffle_wstr::{FromWStr, WStr};
 use std::{
     fmt::{self, Display, Formatter},
@@ -8,7 +9,11 @@ use std::{
 };
 use swf::{Color, Rectangle, Twips};
 
-use crate::{config::Letterbox, context::{self, UpdateContext}, tag_utils::SwfMovie};
+use crate::{
+    config::Letterbox,
+    context::{self, RenderContext, UpdateContext},
+    tag_utils::SwfMovie,
+};
 
 use super::DisplayObjectBase;
 
@@ -115,12 +120,15 @@ impl Stage {
     pub fn quality(self) -> StageQuality {
         self.quality
     }
-    pub fn set_quality(&mut self,context:&mut UpdateContext, quality: StageQuality) {
+    pub fn set_quality(&mut self, context: &mut UpdateContext, quality: StageQuality) {
         self.quality = quality;
         self.use_bitmap_down_sampling = matches!(
             quality,
-            StageQuality::Best | StageQuality::High8x8 | StageQuality::High16x16|
-            StageQuality::High8x8Linear | StageQuality::High16x16Linear
+            StageQuality::Best
+                | StageQuality::High8x8
+                | StageQuality::High16x16
+                | StageQuality::High8x8Linear
+                | StageQuality::High16x16Linear
         );
         // context.renderer.set_quality(quality);
     }
@@ -136,8 +144,8 @@ impl Stage {
     pub fn scale_mode(self) -> StageScaleMode {
         self.scale_mode
     }
-    pub fn set_scale_mode(&mut self,context:&mut UpdateContext, scale_mode: StageScaleMode) {
-        if !self.forced_scale_mode(){
+    pub fn set_scale_mode(&mut self, context: &mut UpdateContext, scale_mode: StageScaleMode) {
+        if !self.forced_scale_mode() {
             self.scale_mode = scale_mode;
             self.build_matrices(context);
         }
@@ -152,8 +160,8 @@ impl Stage {
     pub fn align(self) -> StageAlign {
         self.align
     }
-    pub fn set_align(&mut self,context:&mut UpdateContext, align: StageAlign) {
-        if !self.forced_align(){
+    pub fn set_align(&mut self, context: &mut UpdateContext, align: StageAlign) {
+        if !self.forced_align() {
             self.align = align;
             self.build_matrices(context);
         }
@@ -186,22 +194,22 @@ impl Stage {
     }
     fn should_letterbox(self) -> bool {
         self.scale_mode == StageScaleMode::ShowAll
-        && self.align.is_empty()
-        && self.window_mode != WindowMode::Transparent
-        && (self.letterbox == Letterbox::On
-            || (self.letterbox == Letterbox::Fullscreen && self.is_full_screen()))
+            && self.align.is_empty()
+            && self.window_mode != WindowMode::Transparent
+            && (self.letterbox == Letterbox::On
+                || (self.letterbox == Letterbox::Fullscreen && self.is_full_screen()))
     }
-    pub fn build_matrices(&mut self, context:&mut UpdateContext){
+    pub fn build_matrices(&mut self, context: &mut UpdateContext) {
         let scale_mode = self.scale_mode;
         let align = self.align;
         let prev_stage_size = self.stage_size;
         let viewport_size = context.renderer.viewport_dimensions();
 
         self.stage_size = if self.scale_mode == StageScaleMode::NoScale {
-            let width = f64::from(viewport_size.width)/viewport_size.scale_factor;
-            let height = f64::from(viewport_size.height)/viewport_size.scale_factor;
+            let width = f64::from(viewport_size.width) / viewport_size.scale_factor;
+            let height = f64::from(viewport_size.height) / viewport_size.scale_factor;
             (width as u32, height as u32)
-        }else{
+        } else {
             self.movie_size
         };
 
@@ -216,7 +224,7 @@ impl Stage {
         let movie_aspect = movie_width / movie_height;
         let viewport_aspect = viewport_width / viewport_height;
 
-        let (scale_x,scale_y) = match scale_mode {
+        let (scale_x, scale_y) = match scale_mode {
             StageScaleMode::ShowAll => {
                 // Keep aspect ratio, padding the edges.
                 let scale = if viewport_aspect > movie_aspect {
@@ -227,7 +235,7 @@ impl Stage {
                 (scale, scale)
             }
             StageScaleMode::NoBorder => {
-                 // Keep aspect ratio, cropping off the edges.
+                // Keep aspect ratio, cropping off the edges.
                 let scale = if viewport_aspect < movie_aspect {
                     viewport_height / movie_height
                 } else {
@@ -235,7 +243,9 @@ impl Stage {
                 };
                 (scale, scale)
             }
-            StageScaleMode::ExactFit => (viewport_width / movie_width, viewport_height / movie_height),
+            StageScaleMode::ExactFit => {
+                (viewport_width / movie_width, viewport_height / movie_height)
+            }
 
             StageScaleMode::NoScale => (viewport_size.scale_factor, viewport_size.scale_factor),
         };
@@ -293,7 +303,82 @@ impl Stage {
         if scale_mode == StageScaleMode::NoScale && stage_size_changed {
             // self.fire_resize_event(context);
         }
-    }   
+    }
+    fn draw_letterbox(&self, context: &mut RenderContext) {
+        let ViewportDimensions {
+            width: viewport_width,
+            height: viewport_height,
+            scale_factor: _,
+        } = context.renderer.viewport_dimensions();
+        let viewport_width = viewport_width as f32;
+        let viewport_height = viewport_height as f32;
+
+        let view_matrix = self.view_matrix();
+
+        let (movie_width, movie_height) = self.movie_size;
+        let movie_width = movie_width as f32 * view_matrix.a;
+        let movie_height = movie_height as f32 * view_matrix.d;
+
+        let margin_left = view_matrix.tx.to_pixels() as f32;
+        let margin_right = viewport_width - movie_width - margin_left;
+        let margin_top = view_matrix.ty.to_pixels() as f32;
+        let margin_bottom = viewport_height - movie_height - margin_top;
+
+        // Letterboxing only occurs in `StageScaleMode::ShowAll`, and they would only appear on the top+bottom or left+right.
+        if margin_top + margin_bottom > margin_left + margin_right {
+            // Top + bottom
+            if margin_top > 0.0 {
+                context.commands.draw_rect(
+                    Color::BLACK,
+                    Matrix::create_box(
+                        viewport_width,
+                        margin_top,
+                        0.0,
+                        Twips::default(),
+                        Twips::default(),
+                    ),
+                );
+            }
+            if margin_bottom > 0.0 {
+                context.commands.draw_rect(
+                    Color::BLACK,
+                    Matrix::create_box(
+                        viewport_width,
+                        margin_bottom,
+                        0.0,
+                        Twips::default(),
+                        Twips::from_pixels((viewport_height - margin_bottom) as f64),
+                    ),
+                );
+            }
+        } else {
+            // Left + right
+            if margin_left > 0.0 {
+                context.commands.draw_rect(
+                    Color::BLACK,
+                    Matrix::create_box(
+                        margin_left,
+                        viewport_height,
+                        0.0,
+                        Twips::default(),
+                        Twips::default(),
+                    ),
+                );
+            }
+            if margin_right > 0.0 {
+                context.commands.draw_rect(
+                    Color::BLACK,
+                    Matrix::create_box(
+                        margin_right,
+                        viewport_height,
+                        0.0,
+                        Twips::from_pixels((viewport_width - margin_right) as f64),
+                        Twips::default(),
+                    ),
+                );
+            }
+        }
+    }
 }
 
 pub struct ParseEnumError;

@@ -1,16 +1,7 @@
-mod binary_data;
-mod character;
-pub mod config;
-mod context;
-mod display_object;
-mod library;
-mod string;
-pub mod tag_utils;
-mod types;
 
 use std::fs::read;
 
-use display_object::movie_clip::MovieClip;
+use swf_parse::display_object::movie_clip::MovieClip;
 
 fn main() {
     let data =

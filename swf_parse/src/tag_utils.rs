@@ -48,6 +48,15 @@ pub struct SwfMovie {
 }
 
 impl  SwfMovie {
+    pub fn empty(swf_version:u8) -> Self {
+        Self {
+            header: HeaderExt::default_with_swf_version(swf_version),
+            data: vec![],
+            encoding: swf::UTF_8,
+            compressed_len: 0,
+            is_movie: false,
+        }
+    }
     pub fn from_data(
         swf_data: &[u8],
     ) -> Result<Self, Error> {

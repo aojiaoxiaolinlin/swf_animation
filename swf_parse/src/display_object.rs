@@ -1,7 +1,7 @@
 pub mod graphic;
 pub mod morph_shape;
 pub mod movie_clip;
-mod stage;
+pub mod stage;
 use std::rc::Rc;
 
 use bitflags::bitflags;
