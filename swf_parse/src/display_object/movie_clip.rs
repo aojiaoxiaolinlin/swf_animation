@@ -8,7 +8,10 @@ use std::{
 };
 
 use crate::{
-    binary_data::{self, BinaryData}, character::{self, Character, CompressedBitmap}, library, tag_utils::{Error, SwfMovie}
+    binary_data::{self, BinaryData},
+    character::{self, Character, CompressedBitmap},
+    library,
+    tag_utils::{Error, SwfMovie},
 };
 use crate::{
     context::{self, UpdateContext},
@@ -18,7 +21,9 @@ use crate::{
 };
 use ruffle_wstr::WString;
 use swf::{
-    extensions::ReadSwfExt, read::{ControlFlow, Reader}, CharacterId, DefineBitsLossless, FrameLabelData, TagCode
+    extensions::ReadSwfExt,
+    read::{ControlFlow, Reader},
+    CharacterId, DefineBitsLossless, FrameLabelData, TagCode,
 };
 
 use super::{graphic::Graphic, morph_shape::MorphShape, DisplayObjectBase, TDisplayObject};
@@ -44,24 +49,16 @@ impl MovieClip {
             },
         }
     }
-    pub fn new_with_data(
-        id:CharacterId,
-        swf:SwfSlice,
-        num_frames:FrameNumber,
-    )->Self{
-        Self{
-            base:Default::default(),
-            static_data:MovieClipData::with_data(id, swf, num_frames)
+    pub fn new_with_data(id: CharacterId, swf: SwfSlice, num_frames: FrameNumber) -> Self {
+        Self {
+            base: Default::default(),
+            static_data: MovieClipData::with_data(id, swf, num_frames),
         }
     }
-    pub fn parse(&mut self) {
+    pub fn parse(&mut self, context: &mut UpdateContext) {
         let swf_movie = self.static_data.swf.clone().movie.clone();
         let mut reader = Reader::new(&swf_movie.data(), swf_movie.version());
-        let mut context = UpdateContext {
-            library: Library::empty(),
-            player_version: swf_movie.version(),
-        };
-        self.read(&mut context, &mut reader);
+        self.read(context, &mut reader);
     }
 
     pub fn read(&mut self, context: &mut UpdateContext, reader: &mut Reader) {
@@ -307,14 +304,21 @@ impl MovieClip {
         reader.read_tag_code(tag_callback);
     }
     #[inline]
-    fn read_define_sprite(&mut self, context: &mut UpdateContext, tag_reader: &mut Reader)-> Result<(), Error> {
+    fn read_define_sprite(
+        &mut self,
+        context: &mut UpdateContext,
+        tag_reader: &mut Reader,
+    ) -> Result<(), Error> {
         let start = tag_reader.as_slice();
         let id = tag_reader.read_u16()?;
         let num_frames = tag_reader.read_u16()?;
         let num_read = tag_reader.pos(start);
 
-        let movie_clip = MovieClip::new_with_data(id,self.static_data.swf.clone(), num_frames);
-        context.library.library_for_movie_mut(self.movie()).register_character(id, Character::MovieClip(movie_clip));
+        let movie_clip = MovieClip::new_with_data(id, self.static_data.swf.clone(), num_frames);
+        context
+            .library
+            .library_for_movie_mut(self.movie())
+            .register_character(id, Character::MovieClip(movie_clip));
 
         self.read(context, tag_reader);
         Ok(())
@@ -496,10 +500,7 @@ impl MovieClip {
         Ok(())
     }
     #[inline]
-    fn scene_and_frame_labels(
-        &mut self,
-        reader: &mut Reader,
-    ) -> Result<(), Error> {
+    fn scene_and_frame_labels(&mut self, reader: &mut Reader) -> Result<(), Error> {
         let static_data = &mut self.static_data;
         let mut sfl_data = reader.read_define_scene_and_frame_label_data()?;
         sfl_data
@@ -542,7 +543,11 @@ impl MovieClip {
         Ok(())
     }
     #[inline]
-    fn jpeg_tables(&mut self,context:&mut UpdateContext, reader: &mut Reader) -> Result<(), Error> {
+    fn jpeg_tables(
+        &mut self,
+        context: &mut UpdateContext,
+        reader: &mut Reader,
+    ) -> Result<(), Error> {
         let jpeg_data = reader.read_slice_to_end();
         context
             .library
@@ -551,11 +556,17 @@ impl MovieClip {
         Ok(())
     }
     #[inline]
-    fn define_binary_data(&mut self,context:& mut UpdateContext, reader: &mut Reader) -> Result<(), Error> {
+    fn define_binary_data(
+        &mut self,
+        context: &mut UpdateContext,
+        reader: &mut Reader,
+    ) -> Result<(), Error> {
         let tag_data = reader.read_define_binary_data()?;
         let binary_data = BinaryData::from_swf_tag(self.movie(), &tag_data);
-        context.library.library_for_movie_mut(self.movie())
-        .register_character(tag_data.id, Character::BinaryData(binary_data));
+        context
+            .library
+            .library_for_movie_mut(self.movie())
+            .register_character(tag_data.id, Character::BinaryData(binary_data));
         Ok(())
     }
     #[inline]
@@ -616,18 +627,17 @@ impl MovieClipData {
     fn cur_frame(&self) -> FrameNumber {
         self.frame_range.cur_frame
     }
-    fn with_data(id:CharacterId,swf:SwfSlice,total_frames:FrameNumber)->Self{
-        Self{
+    fn with_data(id: CharacterId, swf: SwfSlice, total_frames: FrameNumber) -> Self {
+        Self {
             id,
             swf,
-            frame_labels:Vec::new(),
-            frame_labels_map:HashMap::new(),
+            frame_labels: Vec::new(),
+            frame_labels_map: HashMap::new(),
             total_frames,
-            scene_labels:Vec::new(),
-            scene_labels_map:HashMap::new(),
-            frame_range:Default::default(),
+            scene_labels: Vec::new(),
+            scene_labels_map: HashMap::new(),
+            frame_range: Default::default(),
         }
-
     }
 }
 #[derive(Clone)]

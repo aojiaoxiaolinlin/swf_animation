@@ -1,13 +1,11 @@
 use std::{
-    rc::Rc,
-    sync::{Arc, Mutex, MutexGuard},
+    path::PathBuf, rc::Rc, sync::{Arc, Mutex, MutexGuard}
 };
 
 use crate::movie::MovieView;
 use anyhow::anyhow;
 use player_core::{Player, PlayerBuilder};
 use ruffle_render_wgpu::{backend::WgpuRenderBackend, descriptors::Descriptors};
-use url::Url;
 use winit::window::Window;
 
 pub struct PlayerController {
@@ -31,7 +29,7 @@ impl PlayerController {
             None => None,
         }
     }
-    pub fn create(&mut self, movie_url: &Url, movie_view: MovieView) {
+    pub fn create(&mut self, movie_url: &PathBuf, movie_view: MovieView) {
         self.active_player = Some(ActivePlayer::new(
             movie_url.clone(),
             self.descriptors.clone(),
@@ -44,13 +42,13 @@ impl PlayerController {
 }
 
 struct ActivePlayer {
-    movie_url: Url,
+    movie_url: PathBuf,
     player: Arc<Mutex<Player>>,
 }
 
 impl ActivePlayer {
     pub fn new(
-        movie_url: Url,
+        movie_url: PathBuf,
         descriptors: Arc<Descriptors>,
         movie_view: MovieView,
     ) -> Self {
@@ -65,8 +63,8 @@ impl ActivePlayer {
         // let on_metadata = move | swf_header:&ruffle_core::swf::HeaderExt |{
             
         // };
-        let mut player_lock = player.lock().expect("获取 player 失败");
-        player_lock.load_root_movie(&movie_url);
+        let mut player_lock = player.lock().unwrap();
+        player_lock.load_movie(&movie_url);
         drop(player_lock);
         Self {
             movie_url,

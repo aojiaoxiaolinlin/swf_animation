@@ -24,9 +24,9 @@ pub struct PlayerData {
     // timers: Timers,
 }
 impl PlayerData {
-    fn update_context(&mut self) -> (Stage, &mut Library) {
-        (self.stage, &mut self.library)
-    }
+    // fn update_context(&mut self) -> (Stage, &mut Library) {
+    //     (self.stage, &mut self.library)
+    // }
 }
 pub struct Player {
     player_version: u8,
@@ -244,10 +244,10 @@ impl PlayerBuilder {
         let fake_movie = Arc::new(SwfMovie::empty(player_version));
         let frame_rate = self.frame_rate.unwrap_or(24.0);
         let forced_frame_rate = self.frame_rate.is_some();
-        let player = Arc::new_cyclic(|self_ref| {
+        let player = Arc::new( 
             Mutex::new(Player {
                 player_data: PlayerData{
-                    stage: Stage::empty(self.full_screen, fake_movie),
+                    stage: Stage::empty(self.full_screen, fake_movie.clone()),
                     library: Library::empty(),
                 },
                 renderer,
@@ -266,7 +266,7 @@ impl PlayerBuilder {
                 instance_counter: 0,
                 max_execution_duration: self.max_execution_duration,
             })
-        });
+        );
         let mut player_lock = player.lock().unwrap();
         drop(player_lock);
         player

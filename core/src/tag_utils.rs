@@ -1,76 +1,94 @@
-use std::result;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
-use swf::{HeaderExt, TagCode};
-use swf::error::Error;
-use url::Url;
+use swf::{CharacterId, HeaderExt};
+use thiserror::Error;
+pub type SwfStream<'a> = swf::read::Reader<'a>;
 
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("Couldn't read SWF: {0}")]
+    InvalidSwf(#[from] swf::error::Error),
+
+    #[error("Couldn't register bitmap: {0}")]
+    InvalidBitmap(#[from] ruffle_render::error::Error),
+
+    // #[error("Couldn't register font: {0}")]
+    // InvalidFont(#[from] ttf_parser::FaceParsingError),
+    #[error("Attempted to set symbol classes on movie without any")]
+    NoSymbolClasses,
+
+    #[error("Attempted to preload video frames into non-video character {0}")]
+    PreloadVideoIntoInvalidCharacter(CharacterId),
+
+    #[error("IO Error: {0}")]
+    IOError(#[from] std::io::Error),
+
+    #[error("Invalid SWF url")]
+    InvalidSwfUrl,
+}
 #[derive(Debug, Clone)]
 pub struct SwfMovie {
-    /// SWF 文件的头部
+    /// The SWF header parsed from the data stream.
     header: HeaderExt,
-    /// 解压后的数据
+
+    /// Uncompressed SWF data.
     data: Vec<u8>,
 
-    /// SWF 文件的原始url
-    url: String,
-
-    /// 编码
+    /// The suggest encoding for this SWF.
     encoding: &'static swf::Encoding,
 
-    /// 整个数据流的压缩长度
+    /// The compressed length of the entire datastream
     compressed_len: usize,
 
-    /// 此 SwfMovie 是否真正代表已加载的影片，还是填充其他内容，
-    /// 如已加载的图像、填充影片或错误状态。
+    /// Whether this SwfMovie actually represents a loaded movie or fills in for
+    /// something else, like an loaded image, filler movie, or error state.
     is_movie: bool,
 }
+
 impl SwfMovie {
-    pub fn new_empty(swf_version: u8) -> Self {
+    pub fn empty(swf_version: u8) -> Self {
         Self {
-            header: swf::HeaderExt::default_with_swf_version(swf_version),
-            data: Vec::new(),
-            url: "file:///".into(),
+            header: HeaderExt::default_with_swf_version(swf_version),
+            data: vec![],
             encoding: swf::UTF_8,
             compressed_len: 0,
             is_movie: false,
         }
     }
-
-    pub fn from_path(url:&Url)->Result<SwfMovie, Error> {
-        dbg!(url.path().strip_prefix("/").unwrap());
-        let data = std::fs::read(url.path().strip_prefix("/").unwrap()).unwrap();
-        Self::from_data(&data,&url)
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
+        let abs_path = path.as_ref().canonicalize().unwrap();
+        let swf_data = std::fs::read(abs_path)?;
+        Self::from_data(&swf_data)
     }
-
-    pub fn from_data(swf_data:&[u8],
-    url:&Url)->Result<Self,Error>{
+    pub fn from_data(swf_data: &[u8]) -> Result<Self, Error> {
         let compressed_len = swf_data.len();
         let swf_buf = swf::read::decompress_swf(swf_data)?;
         let encoding = swf::SwfStr::encoding_for_version(swf_buf.header.version());
-        let swf_movie = SwfMovie {
+        let movie = Self {
             header: swf_buf.header,
             data: swf_buf.data,
-            url: url.to_string(),
             encoding,
             compressed_len,
             is_movie: true,
         };
-        Ok(swf_movie)
+        Ok(movie)
     }
 
-    pub fn header(&self) -> &HeaderExt {
-        &self.header
-    }
     pub fn data(&self) -> &[u8] {
         &self.data
     }
     pub fn version(&self) -> u8 {
         self.header.version()
     }
+    pub fn header(&self) -> &HeaderExt {
+        &self.header
+    }
+    pub fn is_action_script_3(&self) -> bool {
+        self.header.is_action_script_3()
+    }
 }
 
-
+/// A shared-ownership reference to some portion of an SWF datastream.
 #[derive(Debug, Clone)]
 pub struct SwfSlice {
     pub movie: Arc<SwfMovie>,
@@ -236,106 +254,4 @@ impl SwfSlice {
     pub fn len(&self) -> usize {
         self.end - self.start
     }
-}
-pub enum ControlFlow {
-    /// Stop decoding after this tag.
-    Exit,
-
-    /// Continue decoding the next tag.
-    Continue,
-}
-
-pub type DecodeResult = Result<ControlFlow, Error>;
-pub type SwfStream<'a> = swf::read::Reader<'a>;
-
-/// Decode tags from a SWF stream reader.
-///
-/// The given `tag_callback` will be called for each decoded tag. It will be
-/// provided with the stream to read from, the tag code read, and the tag's
-/// size. The callback is responsible for (optionally) parsing the contents of
-/// the tag; otherwise, it will be skipped.
-///
-/// Decoding will terminate when the following conditions occur:
-///
-///  * The `tag_callback` calls for the decoding to finish.
-///  * The decoder encounters a tag longer than the underlying SWF slice
-///    (indicated by returning false)
-///  * The SWF stream is otherwise corrupt or unreadable (indicated as an error
-///    result)
-///
-/// Decoding will also log tags longer than the SWF slice, error messages
-/// yielded from the tag callback, and unknown tags. It will *only* return an
-/// error message if the SWF tag itself could not be parsed. Other forms of
-/// irregular decoding will be signalled by returning false.
-pub fn decode_tags<'a, F>(reader: &mut SwfStream<'a>, mut tag_callback: F) -> Result<bool, Error>
-where
-    F: for<'b> FnMut(&'b mut SwfStream<'a>, TagCode, usize) -> Result<ControlFlow, Error>,
-{
-    loop {
-        let (tag_code, tag_len) = reader.read_tag_code_and_length()?;
-        if tag_len > reader.get_ref().len() {
-            // tracing::error!("Unexpected EOF when reading tag");
-            *reader.get_mut() = &reader.get_ref()[reader.get_ref().len()..];
-            return Ok(false);
-        }
-
-        let tag_slice = &reader.get_ref()[..tag_len];
-        let end_slice = &reader.get_ref()[tag_len..];
-        if let Some(tag) = TagCode::from_u16(tag_code) {
-            *reader.get_mut() = tag_slice;
-            let result = tag_callback(reader, tag, tag_len);
-
-            match result {
-                Err(e) => {
-                    // tracing::error!("Error running definition tag: {:?}, got {}", tag, e)
-                }
-                Ok(ControlFlow::Exit) => {
-                    *reader.get_mut() = end_slice;
-                    break;
-                }
-                Ok(ControlFlow::Continue) => {}
-            }
-        } else {
-            // tracing::warn!("Unknown tag code: {:?}", tag_code);
-        }
-
-        *reader.get_mut() = end_slice;
-    }
-
-    Ok(true)
-}
-
-
-
-pub fn decode_tags2<'a,F>(reader: &mut SwfStream<'a>,mut tag_callback: F)->Result<bool, Error>
-where
-    F: for<'b> FnMut(&'b mut SwfStream<'a>, TagCode, usize)->Result<ControlFlow, Error>,
-{
-    loop{
-        let (tag_code,tag_len) = reader.read_tag_code_and_length()?;
-        // if tag_len > reader.get_ref().len(){
-        //     // *reader.get_mut() = &reader.get_ref()[reader.get_ref().len()..];
-        //     return Ok(false);
-        // }
-        // let tag_slice: &[u8] = &reader.get_ref()[..tag_len];
-        // let end_slice = &reader.get_ref()[tag_len..];
-        if let Some(tag) = TagCode::from_u16(tag_code){
-            // *reader.get_mut() = tag_slice;
-            let result = tag_callback(reader,tag,tag_len);
-            match result{
-                Err(e)=>{
-                    // tracing::error!("Error running definition tag: {:?}, got {}", tag, e)
-                }
-                Ok(ControlFlow::Exit)=>{
-                    // *reader.get_mut() = end_slice;
-                    break;
-                }
-                Ok(ControlFlow::Continue)=>{}
-            }
-        }else{
-            // tracing::warn!("Unknown tag code: {:?}", tag_code);
-        }
-        // *reader.get_mut() = end_slice;
-    }
-    Ok(true)
 }

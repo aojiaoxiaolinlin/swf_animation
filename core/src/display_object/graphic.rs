@@ -1,23 +1,34 @@
-use crate::display_object::DisplayObjectBase;
-use crate::drawing::Drawing;
-use crate::tag_utils::SwfMovie;
-use swf::CharacterId;
-use ruffle_render::backend::ShapeHandle;
-use swf::Twips;
-use swf::Rectangle;
 use std::sync::Arc;
 
-pub struct Graphic {
-    base: DisplayObjectBase,
-    static_data: GraphicStatic,
-    drawing: Option<Drawing>,
+use ruffle_render::backend::ShapeHandle;
+use swf::{CharacterId, Rectangle, Shape, Twips};
+
+use crate::tag_utils::SwfMovie;
+
+#[derive(Debug)]
+pub struct Graphic{
+    static_data: GraphicData,
 }
-
-
-struct GraphicStatic {
-    id: CharacterId,
-    shape: swf::Shape,
-    render_handle: Option<ShapeHandle>,
-    bounds: Rectangle<Twips>,
-    movie: Arc<SwfMovie>,
+impl Graphic{
+    pub fn from_swf_tag(swf_shape:Shape,movie:Arc<SwfMovie>)->Self{
+        let static_data = GraphicData{
+            id:swf_shape.id,
+            render_handle:None,
+            bounds:swf_shape.shape_bounds.clone(),
+            shape:swf_shape,
+            movie,
+        };
+        Graphic{
+            static_data,
+        }
+    }
+    
+}
+#[derive(Debug)]
+struct GraphicData{
+    id:CharacterId,
+    shape:Shape,
+    render_handle:Option<ShapeHandle>,
+    bounds:Rectangle<Twips>,
+    movie:Arc<SwfMovie>,
 }

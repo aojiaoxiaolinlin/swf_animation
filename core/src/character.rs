@@ -1,36 +1,11 @@
 use std::cell::RefCell;
 
-// use crate::backend::audio::SoundHandle;
-// use crate::binary_data::BinaryData;
-// use crate::display_object::{
-//     Graphic, MorphShape, MovieClip, Text, Video,
-// };
-// use crate::font::Font;
 use ruffle_render::bitmap::{BitmapHandle, BitmapSize};
 use swf::DefineBitsLossless;
 
-#[derive(Clone, Debug)]
-pub enum Character {
-    // EditText(EditText),
-    // Graphic(Graphic),
-    // MovieClip(MovieClip),
-    // Bitmap {
-    //     compressed: CompressedBitmap,
-    //     /// A lazily constructed GPU handle, used when performing fills with this bitmap
-    //     handle: RefCell<Option<BitmapHandle>>,
-
-    // },
-    // // Font(Font),
-    // MorphShape(MorphShape),
-    // Text(Text),
-    // Video(Video),
-    // BinaryData(BinaryData),
-}
-
-/// Holds a bitmap from an SWF tag, plus the decoded width/height.
-/// We avoid decompressing the image until it's actually needed - some pathological SWFS
-/// like 'House' have thousands of highly-compressed (mostly empty) bitmaps, which can
-/// take over 10GB of ram if we decompress them all during preloading.
+use crate::{binary_data::BinaryData, display_object::{graphic::Graphic, morph_shape::MorphShape, movie_clip::MovieClip}};
+/// 这个类保存了一个来自 SWF 标签的位图，以及解码后的宽度和高度。我们避免在实际需要之前解压图像
+/// ——一些像“House”这样的病态 SWF 文件有数千个高度压缩（大部分为空）的位图，如果在预加载期间解压所有这些位图，可能需要超过 10GB 的内存。
 #[derive(Clone, Debug)]
 pub enum CompressedBitmap {
     Jpeg {
@@ -68,4 +43,15 @@ impl CompressedBitmap {
             }
         }
     }
+}
+
+pub enum Character {
+    Graphic(Graphic),
+    MorphShape(MorphShape),
+    MovieClip(MovieClip),
+    Bitmap {
+        compressed: CompressedBitmap,
+        handle:RefCell<Option<BitmapHandle>>,
+    },
+    BinaryData(BinaryData),
 }

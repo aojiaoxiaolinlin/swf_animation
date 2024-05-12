@@ -1,10 +1,11 @@
-mod container;
-mod interactive;
+pub mod graphic;
+pub mod morph_shape;
 pub mod movie_clip;
 pub mod stage;
-mod graphic;
+use std::rc::Rc;
 
 use bitflags::bitflags;
+
 use ruffle_macros::enum_trait_object;
 use ruffle_render::{
     backend::RenderBackend,
@@ -15,48 +16,73 @@ use ruffle_render::{
     pixel_bender::PixelBenderShaderHandle,
     transform::Transform,
 };
-use std::fmt::Debug;
+use ruffle_wstr::WString;
 use swf::{Color, Depth, Point, Rectangle, Twips};
 
 use crate::types::{Degrees, Percent};
 
-use self::stage::Stage;
-#[enum_trait_object(
-    #[derive(Debug,Clone)]
-    pub enum DisplayObject{
-        Stage(Stage),
-        // Bitmap(Bitmap),
-        // EditText(EditText),
-        // Graphic(Graphic),
-        // MorphShape(MorphShape),
-        // MovieClip(MovieClip),
-        // Text(Text),
-        // Video(Video),
-        // LoaderDisplay(LoaderDisplay),
+use self::movie_clip::MovieClip;
+
+bitflags! {
+    /// Bit flags used by `DisplayObject`.
+    #[derive(Clone, Copy)]
+    struct DisplayObjectFlags: u16 {
+        /// Whether this object has been removed from the display list.
+        /// Necessary in AVM1 to throw away queued actions from removed movie clips.
+        const AVM1_REMOVED             = 1 << 0;
+
+        /// If this object is visible (`_visible` property).
+        const VISIBLE                  = 1 << 1;
+
+        /// Whether the `_xscale`, `_yscale` and `_rotation` of the object have been calculated and cached.
+        const SCALE_ROTATION_CACHED    = 1 << 2;
+
+        /// Whether this object has been transformed by ActionScript.
+        /// When this flag is set, changes from SWF `PlaceObject` tags are ignored.
+        const TRANSFORMED_BY_SCRIPT    = 1 << 3;
+
+        /// Whether this object has been placed in a container by ActionScript 3.
+        /// When this flag is set, changes from SWF `RemoveObject` tags are ignored.
+        const PLACED_BY_SCRIPT         = 1 << 4;
+
+        /// Whether this object has been instantiated by a SWF tag.
+        /// When this flag is set, attempts to change the object's name from AVM2 throw an exception.
+        const INSTANTIATED_BY_TIMELINE = 1 << 5;
+
+        /// Whether this object is a "root", the top-most display object of a loaded SWF or Bitmap.
+        /// Used by `MovieClip.getBytesLoaded` in AVM1 and `DisplayObject.root` in AVM2.
+        const IS_ROOT                  = 1 << 6;
+
+        /// Whether this object has `_lockroot` set to true, in which case
+        /// it becomes the _root of itself and of any children
+        const LOCK_ROOT                = 1 << 7;
+
+        /// Whether this object will be cached to bitmap.
+        const CACHE_AS_BITMAP          = 1 << 8;
+
+        /// Whether this object has a scroll rectangle applied.
+        const HAS_SCROLL_RECT          = 1 << 9;
+
+        /// Whether this object has an explicit name.
+        const HAS_EXPLICIT_NAME        = 1 << 10;
+
+        /// Flag set when we should skip running our next 'enterFrame'
+        /// for ourself and our children.
+        /// This is set for objects constructed from ActionScript,
+        /// which are observed to lag behind objects placed by the timeline
+        /// (even if they are both placed in the same frame)
+        const SKIP_NEXT_ENTER_FRAME    = 1 << 11;
+
+        /// If this object has already had `invalidate_cached_bitmap` called this frame
+        const CACHE_INVALIDATED        = 1 << 12;
+
+        /// If this AVM1 object is pending removal (will be removed on the next frame).
+        const AVM1_PENDING_REMOVAL     = 1 << 13;
     }
-)]
-pub trait TDisplayObject: Clone + Debug + Into<DisplayObject> {
-    // fn id(&self) -> CharacterId;
-    // fn depth(&self) -> Depth {
-    //     self.base().depth()
-    // }
 }
-/// If a `DisplayObject` is marked `cacheAsBitmap` (via tag or AS),
-/// this struct keeps the information required to uphold that cache.
-/// A cached Display Object must have its bitmap invalidated when
-/// any "visual" change happens, which can include:
-/// - Changing the rotation
-/// - Changing the scale
-/// - Changing the alpha
-/// - Changing the color transform
-/// - Any "visual" change to children, **including** position changes
-///
-/// Position changes to the cached Display Object does not regenerate the cache,
-/// allowing Display Objects to move freely without being regenerated.
-///
-/// Flash isn't very good at always recognising when it should be invalidated,
-/// and there's cases such as changing the blend mode which don't always trigger it.
-///
+/// 如果一个显示对象被标记为 cacheAsBitmap（通过标记或 AS），该结构体将保存维护缓存所需的信息。当任何 "视觉 "变化发生时，缓存的显示对象必须使其位图失效，这些变化包括
+/// 更改旋转 更改缩放 更改 Alpha 更改颜色变换 对子对象的任何 "视觉 "更改，包括位置更改 对缓存显示对象的位置更改不会重新生成缓存，从而允许显示对象自由移动而无需重新生成。
+/// Flash 并不善于识别何时应使缓存失效，而且在某些情况下（如更改混合模式）并不总能触发缓存失效。
 #[derive(Clone, Debug, Default)]
 pub struct BitmapCache {
     /// The `Matrix.a` value that was last used with this cache
@@ -161,15 +187,15 @@ impl BitmapCache {
         self.bitmap.as_ref().map(|b| b.handle.clone())
     }
 }
-#[derive(Debug, Clone)]
+
 pub struct DisplayObjectBase {
-    parent: Option<DisplayObject>,
-    depth: Depth,
+    parent: Option<Rc<DisplayObject>>,
     place_frame: u16,
+    depth: Depth,
     transform: Transform,
-    clip_depth: Option<Depth>,
-    name: Option<String>,
+    name: Option<WString>,
     filters: Vec<Filter>,
+    clip_depth: Depth,
 
     rotation: Degrees,
     scale_x: Percent,
@@ -177,104 +203,75 @@ pub struct DisplayObjectBase {
 
     skew: f64,
 
-    masker: Option<DisplayObject>,
+    next_avm1_clip: Option<Rc<DisplayObject>>,
 
-    masking: Option<DisplayObject>,
+    masker: Option<Rc<DisplayObject>>,
+
+    masking: Option<Rc<DisplayObject>>,
 
     /// 渲染此显示对象时使用的混合模式。
     /// 除默认 BlendMode::Normal 之外的其他值都会隐式地导致 "缓存即位图 "行为。
     blend_mode: ExtendedBlendMode,
+
     blend_shader: Option<PixelBenderShaderHandle>,
-    /// 此显示对象的不透明背景颜色。显示对象的边界框将填充给定的颜色。这也会触发缓存即位图（cache-as-bitmap）行为。
-    /// 仅支持纯色背景；alpha 通道将被忽略。
+
+    /// 此显示对象的不透明背景颜色。显示对象的边界框将填充给定的颜色。
+    /// 这也会触发缓存即位图（cache-as-bitmap）行为。仅支持纯色背景；alpha 通道将被忽略。
     opaque_background: Option<Color>,
 
     /// 各种显示对象属性的位标志。
     flags: DisplayObjectFlags,
+    /// `internal`滚动矩形用于渲染和`localToGlobal`等方法。这是从`pre_render`更新而来。
     scroll_rect: Option<Rectangle<Twips>>,
+    /// 下一个 "滚动矩形，我们将把它从 "pre_render "复制到 "scroll_rect",
+    /// ActionScript 的 "DisplayObject.scrollRect "getter 使用它，可以立即看到
+    /// 变化（无需等待渲染）。
+    next_scroll_rect: Rectangle<Twips>,
+
+    /// 缩放网格，用于缩放 9 宫格位图。
     scaling_grid: Rectangle<Twips>,
+
+    ///此显示对象是否应缓存为位图，如果是，则缓存本身。
+    /// 无表示未缓存，有表示已缓存。
+    ///  用于缓存的位图数据。
     cache: Option<BitmapCache>,
 }
 impl Default for DisplayObjectBase {
     fn default() -> Self {
         Self {
-            parent: None,
-            depth: 0,
-            place_frame: 0,
+            parent: Default::default(),
+            place_frame: Default::default(),
+            depth: Default::default(),
             transform: Default::default(),
-            clip_depth: None,
             name: None,
-            filters: Vec::new(),
-            rotation: 0.0.into(),
-            scale_x: 1.0.into(),
-            scale_y: 1.0.into(),
+            filters: Default::default(),
+            clip_depth: Default::default(),
+            rotation: Degrees::from_radians(0.0),
+            scale_x: Percent::from_unit(1.0),
+            scale_y: Percent::from_unit(1.0),
             skew: 0.0,
+            next_avm1_clip: None,
             masker: None,
             masking: None,
-            blend_mode: ExtendedBlendMode::Normal,
+            blend_mode: Default::default(),
             blend_shader: None,
-            opaque_background: None,
-            flags: DisplayObjectFlags::empty(),
+            opaque_background: Default::default(),
+            flags: DisplayObjectFlags::VISIBLE,
             scroll_rect: None,
-            scaling_grid: Rectangle::default(),
+            next_scroll_rect: Default::default(),
+            scaling_grid: Default::default(),
             cache: None,
         }
     }
 }
-bitflags! {
-    /// Bit flags used by `DisplayObject`.
-    #[derive(Clone, Copy,Debug)]
-    struct DisplayObjectFlags: u16 {
-        /// Whether this object has been removed from the display list.
-        /// Necessary in AVM1 to throw away queued actions from removed movie clips.
-        const AVM1_REMOVED             = 1 << 0;
-
-        /// If this object is visible (`_visible` property).
-        const VISIBLE                  = 1 << 1;
-
-        /// Whether the `_xscale`, `_yscale` and `_rotation` of the object have been calculated and cached.
-        const SCALE_ROTATION_CACHED    = 1 << 2;
-
-        /// Whether this object has been transformed by ActionScript.
-        /// When this flag is set, changes from SWF `PlaceObject` tags are ignored.
-        const TRANSFORMED_BY_SCRIPT    = 1 << 3;
-
-        /// Whether this object has been placed in a container by ActionScript 3.
-        /// When this flag is set, changes from SWF `RemoveObject` tags are ignored.
-        const PLACED_BY_SCRIPT         = 1 << 4;
-
-        /// Whether this object has been instantiated by a SWF tag.
-        /// When this flag is set, attempts to change the object's name from AVM2 throw an exception.
-        const INSTANTIATED_BY_TIMELINE = 1 << 5;
-
-        /// Whether this object is a "root", the top-most display object of a loaded SWF or Bitmap.
-        /// Used by `MovieClip.getBytesLoaded` in AVM1 and `DisplayObject.root` in AVM2.
-        const IS_ROOT                  = 1 << 6;
-
-        /// Whether this object has `_lockroot` set to true, in which case
-        /// it becomes the _root of itself and of any children
-        const LOCK_ROOT                = 1 << 7;
-
-        /// Whether this object will be cached to bitmap.
-        const CACHE_AS_BITMAP          = 1 << 8;
-
-        /// Whether this object has a scroll rectangle applied.
-        const HAS_SCROLL_RECT          = 1 << 9;
-
-        /// Whether this object has an explicit name.
-        const HAS_EXPLICIT_NAME        = 1 << 10;
-
-        /// Flag set when we should skip running our next 'enterFrame'
-        /// for ourself and our children.
-        /// This is set for objects constructed from ActionScript,
-        /// which are observed to lag behind objects placed by the timeline
-        /// (even if they are both placed in the same frame)
-        const SKIP_NEXT_ENTER_FRAME    = 1 << 11;
-
-        /// If this object has already had `invalidate_cached_bitmap` called this frame
-        const CACHE_INVALIDATED        = 1 << 12;
-
-        /// If this AVM1 object is pending removal (will be removed on the next frame).
-        const AVM1_PENDING_REMOVAL     = 1 << 13;
+#[enum_trait_object(
+    pub enum DisplayObject {
+        MovieClip(MovieClip)
+    }
+)]
+pub trait TDisplayObject {
+    fn base_mut(&mut self) -> &mut DisplayObjectBase;
+    fn set_scaling_grid(&mut self, rect: Rectangle<Twips>) {
+        self.base_mut().scaling_grid = rect;
     }
 }

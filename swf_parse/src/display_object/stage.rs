@@ -92,7 +92,7 @@ impl Stage {
     pub fn set_background_color(&mut self, color: Option<Color>) {
         self.background_color = color;
     }
-    pub fn view_matrix(self) -> Matrix {
+    pub fn view_matrix(&self) -> Matrix {
         self.viewport_matrix
     }
     pub fn letterbox(self) -> Letterbox {
@@ -184,7 +184,7 @@ impl Stage {
     pub fn set_window_mode(&mut self, window_mode: WindowMode) {
         self.window_mode = window_mode;
     }
-    pub fn is_full_screen(self) -> bool {
+    pub fn is_full_screen(&mut self) -> bool {
         let display_state = self.display_state;
         Self::is_fullscreen_state(display_state)
     }
@@ -192,7 +192,7 @@ impl Stage {
         display_state == StageDisplayState::FullScreen
             || display_state == StageDisplayState::FullScreenInteractive
     }
-    fn should_letterbox(self) -> bool {
+    fn should_letterbox(&mut self) -> bool {
         self.scale_mode == StageScaleMode::ShowAll
             && self.align.is_empty()
             && self.window_mode != WindowMode::Transparent

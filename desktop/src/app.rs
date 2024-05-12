@@ -1,8 +1,7 @@
-use std::{path::Path, rc::Rc};
+use std::{path::{Path, PathBuf}, rc::Rc};
 
 use crate::{player::PlayerController, render_controller::RenderController};
 use anyhow::Error;
-use url::Url;
 use winit::{
     event::{Event, WindowEvent},
     event_loop::EventLoop,
@@ -11,7 +10,7 @@ use winit::{
 const MOVIE_CLIP_URL: &str = "desktop/swf_files/spirit2471src.swf";
 
 pub struct App {
-    movie_url: Url,
+    movie_url: PathBuf,
     player_controller: PlayerController,
     window: Rc<Window>,
     event_loop: Option<EventLoop<()>>,
@@ -19,18 +18,16 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        let current_dir = std::env::current_dir().expect("获取当前目录失败");
         let event_loop = EventLoop::new().unwrap();
         let window = WindowBuilder::new()
             .with_title("swf-player")
             .build(&event_loop)
             .unwrap();
-        let window = Rc::new(window);
+        let window: Rc<Window> = Rc::new(window);
         let mut render_controller = RenderController::new(window.clone()).unwrap();
         let mut player_controller =
             PlayerController::new(window.clone(), render_controller.descriptors());
-        let movie_url = Url::from_file_path(current_dir.join(MOVIE_CLIP_URL)).unwrap();
-
+        let movie_url = Path::new(MOVIE_CLIP_URL).to_path_buf();
         render_controller.create_movie(&mut player_controller, movie_url.clone());
 
 
@@ -67,7 +64,9 @@ impl App {
                     // 自己调用request_redraw()方法，不需要等待系统调用
                     // dbg!("AboutToWait");
                     // 应用程序应该总是重新绘制窗口
-                    // window.request_redraw();
+                    if let Some(mut player) = self.player_controller.get() {
+                        // player.tick();
+                    }
                 }
 
                 _ => {}

@@ -1,216 +1,403 @@
+use bitflags::bitflags;
+use ruffle_render::commands::CommandHandler;
+use ruffle_render::{backend::ViewportDimensions, matrix::Matrix, quality::StageQuality};
+use ruffle_wstr::{FromWStr, WStr};
 use std::{
-    cell::RefCell,
-    fmt::{self, Debug, Display, Formatter},
-    rc::Rc,
+    fmt::{self, Display, Formatter},
     str::FromStr,
     sync::Arc,
 };
-
-use ruffle_render::{matrix::Matrix, quality::StageQuality, transform::Transform};
-use ruffle_wstr::{FromWStr, WStr};
 use swf::{Color, Rectangle, Twips};
 
-use crate::{config::Letterbox, context::RenderContext, tag_utils::SwfMovie};
+use crate::{
+    config::Letterbox,
+    context::{self, RenderContext, UpdateContext},
+    tag_utils::SwfMovie,
+};
 
-use super::{container::ChildContainer, interactive::InteractiveObjectBase};
+use super::DisplayObjectBase;
 
-#[derive(Debug, Clone)]
-pub struct StageData {
-    base: InteractiveObjectBase,
-    child: ChildContainer,
+pub struct Stage {
+    base: DisplayObjectBase,
+
     background_color: Option<Color>,
+
     letterbox: Letterbox,
-    swf_movie_size: (u32, u32),
+
+    movie_size: (u32, u32),
+
     quality: StageQuality,
+
     stage_size: (u32, u32),
+
     scale_mode: StageScaleMode,
+
     forced_scale_mode: bool,
+
     display_state: StageDisplayState,
 
-    /// 下一次渲染时，是否发送 RENDER 事件。
+    align: StageAlign,
+
+    forced_align: bool,
+
+    allow_full_screen: bool,
+
     invalidated: bool,
 
-    use_bitmap_downsampling: bool,
+    use_bitmap_down_sampling: bool,
 
-    /// 当前视口的边界。用于剔除
     view_bounds: Rectangle<Twips>,
 
-    /// 视口的窗口模式
-    /// 仅用于网页，以控制 Flash 内容如何与页面上的其他内容分层。
     window_mode: WindowMode,
-    /// 对象对焦时是否显示发光边框。
+
     stage_focus_rect: bool,
 
-    /// 渲染舞台时应用的最终视口变换矩阵。其中包括 HiDPI 缩放因子和舞台对齐平移。这些都不包括在 ActionScript 公开的 Stage.matrix 中
-    /// （除非通过 ActionScript 明确设置，否则 Stage.matrix 始终是标识矩阵）
-    swf_movie: Arc<SwfMovie>,
+    movie: Arc<SwfMovie>,
 
     viewport_matrix: Matrix,
 }
 
-#[derive(Clone)]
-pub struct Stage(Rc<RefCell<StageData>>);
-
-impl Debug for Stage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Stage")
-            .field("ptr", &self.0.borrow().swf_movie.header())
-            .finish()
-    }
-}
-
 impl Stage {
-    pub fn new_empty(full_screen: bool, swf_movie: Arc<SwfMovie>) -> Self {
-        let stage = Self(Rc::new(RefCell::new(StageData {
-            base: Default::default(),
-            child: ChildContainer::new(swf_movie.clone()),
-            letterbox: Letterbox::FullScreen,
-            swf_movie_size: (0, 0),
-            quality: Default::default(),
+    pub fn empty(full_screen: bool, movie: Arc<SwfMovie>) -> Self {
+        Self {
+            base: DisplayObjectBase::default(),
+            background_color: None,
+            letterbox: Letterbox::Fullscreen,
+            movie_size: (0, 0),
+            quality: StageQuality::High,
             stage_size: (0, 0),
-            scale_mode: Default::default(),
+            scale_mode: StageScaleMode::ShowAll,
             forced_scale_mode: false,
             display_state: if full_screen {
                 StageDisplayState::FullScreen
             } else {
                 StageDisplayState::Normal
             },
+            align: StageAlign::default(),
+            forced_align: false,
+            allow_full_screen: true,
             invalidated: false,
-            use_bitmap_downsampling: false,
-            view_bounds: Default::default(),
-            window_mode: Default::default(),
-            stage_focus_rect: true,
-            swf_movie,
+            use_bitmap_down_sampling: false,
+            view_bounds: Rectangle::default(),
+            window_mode: WindowMode::Opaque,
+            stage_focus_rect: false,
+            movie,
             viewport_matrix: Matrix::IDENTITY,
-            background_color: None,
-        })));
-        stage.set_is_root(true);
-        stage
+        }
     }
 
-    /// 设置此显示对象是否代表已加载内容的根。
-    fn set_is_root(&self, is_root: bool) {
-        // self.0.base.set_is_root(is_root);
-    }
     pub fn background_color(&self) -> Option<Color> {
-        self.0.borrow().background_color
+        self.background_color
     }
     pub fn set_background_color(&mut self, color: Option<Color>) {
-        self.0.borrow_mut().background_color = color;
+        self.background_color = color;
     }
-    pub fn letterbox(&self) -> Letterbox {
-        self.0.borrow().letterbox
+    pub fn view_matrix(&self) -> Matrix {
+        self.viewport_matrix
+    }
+    pub fn letterbox(self) -> Letterbox {
+        self.letterbox
     }
     pub fn set_letterbox(&mut self, letterbox: Letterbox) {
-        self.0.borrow_mut().letterbox = letterbox;
+        self.letterbox = letterbox;
     }
-    pub fn swf_movie_size(&self) -> (u32, u32) {
-        self.0.borrow().swf_movie_size
+    pub fn movie_size(self) -> (u32, u32) {
+        self.movie_size
     }
-    pub fn set_swf_movie_size(&mut self, size: (u32, u32)) {
-        self.0.borrow_mut().swf_movie_size = size;
+    pub fn set_movie_size(&mut self, size: (u32, u32)) {
+        self.movie_size = size;
     }
-    pub fn set_swf_movie(&mut self, swf_movie: Arc<SwfMovie>) {
-        self.0.borrow_mut().swf_movie = swf_movie.clone();
-        self.0.borrow_mut().child.set_swf_movie(swf_movie);
+    pub fn set_movie(&mut self, movie: Arc<SwfMovie>) {
+        self.movie = movie;
+    }
+    pub fn invalidated(self) -> bool {
+        self.invalidated
+    }
+    pub fn set_invalidated(&mut self, invalidated: bool) {
+        self.invalidated = invalidated;
     }
 
     pub fn quality(self) -> StageQuality {
-        self.0.borrow().quality
+        self.quality
     }
-
-    pub fn set_quality(&mut self, quality: StageQuality) {
-        self.0.borrow_mut().quality = quality;
+    pub fn set_quality(&mut self, context: &mut UpdateContext, quality: StageQuality) {
+        self.quality = quality;
+        self.use_bitmap_down_sampling = matches!(
+            quality,
+            StageQuality::Best
+                | StageQuality::High8x8
+                | StageQuality::High16x16
+                | StageQuality::High8x8Linear
+                | StageQuality::High16x16Linear
+        );
+        // context.renderer.set_quality(quality);
     }
-
-    pub fn state_size(&self) -> (u32, u32) {
-        self.0.borrow().stage_size
+    pub fn stage_focus_rect(self) -> bool {
+        self.stage_focus_rect
     }
-    pub fn scale_mode(&self) -> StageScaleMode {
-        self.0.borrow().scale_mode
+    pub fn set_stage_focus_rect(&mut self, stage_focus_rect: bool) {
+        self.stage_focus_rect = stage_focus_rect;
     }
-    pub fn set_scale_mode(&mut self, scale_mode: StageScaleMode) {
-        self.0.borrow_mut().scale_mode = scale_mode;
+    pub fn stage_size(self) -> (u32, u32) {
+        self.stage_size
     }
-    pub fn forced_scale_mode(&self) -> bool {
-        self.0.borrow().forced_scale_mode
+    pub fn scale_mode(self) -> StageScaleMode {
+        self.scale_mode
+    }
+    pub fn set_scale_mode(&mut self, context: &mut UpdateContext, scale_mode: StageScaleMode) {
+        if !self.forced_scale_mode() {
+            self.scale_mode = scale_mode;
+            self.build_matrices(context);
+        }
+    }
+    fn forced_scale_mode(&self) -> bool {
+        self.forced_scale_mode
     }
     pub fn set_forced_scale_mode(&mut self, forced_scale_mode: bool) {
-        self.0.borrow_mut().forced_scale_mode = forced_scale_mode;
-    }
-    pub fn display_state(&self) -> StageDisplayState {
-        self.0.borrow().display_state
-    }
-    pub fn set_display_state(&mut self, display_state: StageDisplayState) {
-        self.0.borrow_mut().display_state = display_state;
-    }
-    pub fn invalidated(&self) -> bool {
-        self.0.borrow().invalidated
-    }
-    pub fn set_invalidated(&mut self, invalidated: bool) {
-        self.0.borrow_mut().invalidated = invalidated;
-    }
-    pub fn is_full_screen(&self) -> bool {
-        self.display_state() == StageDisplayState::FullScreen
-            || self.display_state() == StageDisplayState::FullScreenInteractive
+        self.forced_scale_mode = forced_scale_mode;
     }
 
-    pub fn window_mode(&self) -> WindowMode {
-        self.0.borrow().window_mode
+    pub fn align(self) -> StageAlign {
+        self.align
+    }
+    pub fn set_align(&mut self, context: &mut UpdateContext, align: StageAlign) {
+        if !self.forced_align() {
+            self.align = align;
+            self.build_matrices(context);
+        }
+    }
+    fn forced_align(&self) -> bool {
+        self.forced_align
+    }
+    pub fn set_forced_align(&mut self, forced_align: bool) {
+        self.forced_align = forced_align;
+    }
+    pub fn use_bitmap_down_sampling(self) -> bool {
+        self.use_bitmap_down_sampling
+    }
+    pub fn set_use_bitmap_down_sampling(&mut self, use_bitmap_down_sampling: bool) {
+        self.use_bitmap_down_sampling = use_bitmap_down_sampling;
+    }
+    pub fn window_mode(self) -> WindowMode {
+        self.window_mode
     }
     pub fn set_window_mode(&mut self, window_mode: WindowMode) {
-        self.0.borrow_mut().window_mode = window_mode;
+        self.window_mode = window_mode;
     }
-    pub fn view_bounds(&self) -> Rectangle<Twips> {
-        self.0.borrow().view_bounds.clone()
+    pub fn is_full_screen(&mut self) -> bool {
+        let display_state = self.display_state;
+        Self::is_fullscreen_state(display_state)
     }
-    /// Determine if we should letterbox the stage content.
-    fn should_letterbox(self) -> bool {
-        // Only enable letterbox in the default `ShowAll` scale mode.
-        // If content changes the scale mode or alignment, it signals that it is size-aware.
-        // For example, `NoScale` is used to make responsive layouts; don't letterbox over it.
-        let stage = self.0.borrow_mut();
-        stage.scale_mode == StageScaleMode::ShowAll
-            && stage.window_mode != WindowMode::Transparent
-            && (stage.letterbox == Letterbox::On
-                || (stage.letterbox == Letterbox::FullScreen && self.is_full_screen()))
+    fn is_fullscreen_state(display_state: StageDisplayState) -> bool {
+        display_state == StageDisplayState::FullScreen
+            || display_state == StageDisplayState::FullScreenInteractive
     }
+    fn should_letterbox(&mut self) -> bool {
+        self.scale_mode == StageScaleMode::ShowAll
+            && self.align.is_empty()
+            && self.window_mode != WindowMode::Transparent
+            && (self.letterbox == Letterbox::On
+                || (self.letterbox == Letterbox::Fullscreen && self.is_full_screen()))
+    }
+    pub fn build_matrices(&mut self, context: &mut UpdateContext) {
+        let scale_mode = self.scale_mode;
+        let align = self.align;
+        let prev_stage_size = self.stage_size;
+        let viewport_size = context.renderer.viewport_dimensions();
 
-    pub fn render(&self,context:&mut RenderContext){
-        context.transform_stack.push(&Transform{
-            matrix:self.0.borrow().viewport_matrix,
-            color_transform:Default::default(),
-        });
-        context.transform_stack.pop();
-    }
+        self.stage_size = if self.scale_mode == StageScaleMode::NoScale {
+            let width = f64::from(viewport_size.width) / viewport_size.scale_factor;
+            let height = f64::from(viewport_size.height) / viewport_size.scale_factor;
+            (width as u32, height as u32)
+        } else {
+            self.movie_size
+        };
 
-    fn build_matrices(self) {
-        todo!("build_matrices")
+        let stage_size_changed = prev_stage_size != self.stage_size;
+        let (movie_width, movie_height) = self.movie_size;
+        let movie_width = movie_width as f64;
+        let movie_height = movie_height as f64;
+
+        let viewport_width = viewport_size.width as f64;
+        let viewport_height = viewport_size.height as f64;
+
+        let movie_aspect = movie_width / movie_height;
+        let viewport_aspect = viewport_width / viewport_height;
+
+        let (scale_x, scale_y) = match scale_mode {
+            StageScaleMode::ShowAll => {
+                // Keep aspect ratio, padding the edges.
+                let scale = if viewport_aspect > movie_aspect {
+                    viewport_height / movie_height
+                } else {
+                    viewport_width / movie_width
+                };
+                (scale, scale)
+            }
+            StageScaleMode::NoBorder => {
+                // Keep aspect ratio, cropping off the edges.
+                let scale = if viewport_aspect < movie_aspect {
+                    viewport_height / movie_height
+                } else {
+                    viewport_width / movie_width
+                };
+                (scale, scale)
+            }
+            StageScaleMode::ExactFit => {
+                (viewport_width / movie_width, viewport_height / movie_height)
+            }
+
+            StageScaleMode::NoScale => (viewport_size.scale_factor, viewport_size.scale_factor),
+        };
+
+        let width_delta = viewport_width - movie_width * scale_x;
+        let height_delta = viewport_height - movie_height * scale_y;
+
+        // The precedence is important here to match Flash behavior.
+        // L > R > "", T > B > "".
+        let tx = if align.contains(StageAlign::LEFT) {
+            0.0
+        } else if align.contains(StageAlign::RIGHT) {
+            width_delta
+        } else {
+            width_delta / 2.0
+        };
+        let ty = if align.contains(StageAlign::TOP) {
+            0.0
+        } else if align.contains(StageAlign::BOTTOM) {
+            height_delta
+        } else {
+            height_delta / 2.0
+        };
+        self.viewport_matrix = Matrix {
+            a: scale_x as f32,
+            b: 0.0,
+            c: 0.0,
+            d: scale_y as f32,
+            tx: Twips::from_pixels(tx),
+            ty: Twips::from_pixels(ty),
+        };
+        self.view_bounds = if self.should_letterbox() {
+            // Letterbox: movie area
+            Rectangle {
+                x_min: Twips::ZERO,
+                y_min: Twips::ZERO,
+                x_max: Twips::from_pixels(movie_width),
+                y_max: Twips::from_pixels(movie_height),
+            }
+        } else {
+            // No letterbox: full visible stage area
+            let margin_left = tx / scale_x;
+            let margin_right = (width_delta - tx) / scale_x;
+            let margin_top = ty / scale_y;
+            let margin_bottom = (height_delta - ty) / scale_y;
+            Rectangle {
+                x_min: Twips::from_pixels(-margin_left),
+                y_min: Twips::from_pixels(-margin_top),
+                x_max: Twips::from_pixels(movie_width + margin_right),
+                y_max: Twips::from_pixels(movie_height + margin_bottom),
+            }
+        };
+
+        // Fire resize handler if stage size has changed.
+        if scale_mode == StageScaleMode::NoScale && stage_size_changed {
+            // self.fire_resize_event(context);
+        }
+    }
+    fn draw_letterbox(&self, context: &mut RenderContext) {
+        let ViewportDimensions {
+            width: viewport_width,
+            height: viewport_height,
+            scale_factor: _,
+        } = context.renderer.viewport_dimensions();
+        let viewport_width = viewport_width as f32;
+        let viewport_height = viewport_height as f32;
+
+        let view_matrix = self.view_matrix();
+
+        let (movie_width, movie_height) = self.movie_size;
+        let movie_width = movie_width as f32 * view_matrix.a;
+        let movie_height = movie_height as f32 * view_matrix.d;
+
+        let margin_left = view_matrix.tx.to_pixels() as f32;
+        let margin_right = viewport_width - movie_width - margin_left;
+        let margin_top = view_matrix.ty.to_pixels() as f32;
+        let margin_bottom = viewport_height - movie_height - margin_top;
+
+        // Letterboxing only occurs in `StageScaleMode::ShowAll`, and they would only appear on the top+bottom or left+right.
+        if margin_top + margin_bottom > margin_left + margin_right {
+            // Top + bottom
+            if margin_top > 0.0 {
+                context.commands.draw_rect(
+                    Color::BLACK,
+                    Matrix::create_box(
+                        viewport_width,
+                        margin_top,
+                        0.0,
+                        Twips::default(),
+                        Twips::default(),
+                    ),
+                );
+            }
+            if margin_bottom > 0.0 {
+                context.commands.draw_rect(
+                    Color::BLACK,
+                    Matrix::create_box(
+                        viewport_width,
+                        margin_bottom,
+                        0.0,
+                        Twips::default(),
+                        Twips::from_pixels((viewport_height - margin_bottom) as f64),
+                    ),
+                );
+            }
+        } else {
+            // Left + right
+            if margin_left > 0.0 {
+                context.commands.draw_rect(
+                    Color::BLACK,
+                    Matrix::create_box(
+                        margin_left,
+                        viewport_height,
+                        0.0,
+                        Twips::default(),
+                        Twips::default(),
+                    ),
+                );
+            }
+            if margin_right > 0.0 {
+                context.commands.draw_rect(
+                    Color::BLACK,
+                    Matrix::create_box(
+                        margin_right,
+                        viewport_height,
+                        0.0,
+                        Twips::from_pixels((viewport_width - margin_right) as f64),
+                        Twips::default(),
+                    ),
+                );
+            }
+        }
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Copy)]
+pub struct ParseEnumError;
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StageScaleMode {
     /// The movie will be stretched to fit the container.
-    /// zh-cn: 电影将被拉伸以适应容器。
     ExactFit,
 
     /// The movie will maintain its aspect ratio, but will be cropped.
-    /// zh-cn: 电影将保持其纵横比，但将被裁剪。
     NoBorder,
 
     /// The movie is not scaled to fit the container.
     /// With this scale mode, `Stage.stageWidth` and `stageHeight` will return the dimensions of the container.
     /// SWF content uses this scale mode to resize dynamically and create responsive layouts.
-    /// zh-cn: 电影不会被缩放以适应容器。
-    /// 使用此缩放模式，`Stage.stageWidth` 和 `stageHeight` 将返回容器的尺寸。
-    /// SWF 内容使用此缩放模式来动态调整大小并创建响应式布局。
     NoScale,
 
     /// The movie will scale to fill the container and maintain its aspect ratio, but will be letterboxed.
     /// This is the default scale mode.
-    /// zh-cn: 电影将缩放以填充容器并保持其纵横比，但将添加黑边。
-    /// 这是默认的缩放模式。
     #[default]
     ShowAll,
 }
@@ -227,7 +414,7 @@ impl Display for StageScaleMode {
         f.write_str(s)
     }
 }
-pub struct ParseEnumError;
+
 impl FromStr for StageScaleMode {
     type Err = ParseEnumError;
 
@@ -320,6 +507,75 @@ impl FromWStr for StageDisplayState {
     }
 }
 
+bitflags! {
+    /// The alignment of the stage.
+    /// This controls the position of the movie after scaling to fill the viewport.
+    /// The default alignment is centered (no bits set).
+    ///
+    /// This is a bitflags instead of an enum to mimic Flash Player behavior.
+    /// You can theoretically have both TOP and BOTTOM bits set, for example.
+    #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+    pub struct StageAlign: u8 {
+        /// Align to the top of the viewport.
+        const TOP    = 1 << 0;
+
+        /// Align to the bottom of the viewport.
+        const BOTTOM = 1 << 1;
+
+        /// Align to the left of the viewport.
+        const LEFT   = 1 << 2;
+
+        /// Align to the right of the viewport.;
+        const RIGHT  = 1 << 3;
+    }
+}
+
+impl FromStr for StageAlign {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Chars get converted into flags.
+        // This means "tbbtlbltblbrllrbltlrtbl" is valid, resulting in "TBLR".
+        let mut align = StageAlign::default();
+        for c in s.bytes().map(|c| c.to_ascii_uppercase()) {
+            match c {
+                b'T' => align.insert(StageAlign::TOP),
+                b'B' => align.insert(StageAlign::BOTTOM),
+                b'L' => align.insert(StageAlign::LEFT),
+                b'R' => align.insert(StageAlign::RIGHT),
+                _ => (),
+            }
+        }
+        Ok(align)
+    }
+}
+
+impl FromWStr for StageAlign {
+    type Err = std::convert::Infallible;
+
+    fn from_wstr(s: &WStr) -> Result<Self, Self::Err> {
+        // Chars get converted into flags.
+        // This means "tbbtlbltblbrllrbltlrtbl" is valid, resulting in "TBLR".
+        let mut align = StageAlign::default();
+        for c in s.iter() {
+            match u8::try_from(c).map(|c| c.to_ascii_uppercase()) {
+                Ok(b'T') => align.insert(StageAlign::TOP),
+                Ok(b'B') => align.insert(StageAlign::BOTTOM),
+                Ok(b'L') => align.insert(StageAlign::LEFT),
+                Ok(b'R') => align.insert(StageAlign::RIGHT),
+                _ => (),
+            }
+        }
+        Ok(align)
+    }
+}
+
+/// The window mode of the Ruffle player.
+///
+/// This setting controls how the Ruffle container is layered and rendered with other content on
+/// the page. This setting is only used on web.
+///
+/// [Apply OBJECT and EMBED tag attributes in Adobe Flash Professional](https://helpx.adobe.com/flash/kb/flash-object-embed-tag-attributes.html)
 #[derive(Default, Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WindowMode {
     /// The Flash content is rendered in its own window and layering is done with the browser's

@@ -1,10 +1,9 @@
-use std::{rc::Rc, sync::Arc};
+use std::{path::PathBuf, rc::Rc, sync::Arc};
 
 use anyhow::anyhow;
 use ruffle_render_wgpu::{
     backend::request_adapter_and_device, clap::PowerPreference, descriptors::Descriptors,
 };
-use url::Url;
 use winit::window::Window;
 
 use crate::{
@@ -67,7 +66,7 @@ impl RenderController {
         self.descriptors.clone()
     }
 
-    pub fn create_movie(&mut self, player_controller: &mut PlayerController, movie_url: Url) {
+    pub fn create_movie(&mut self, player_controller: &mut PlayerController, movie_url: PathBuf) {
         let movie_view = MovieView::new(
             self.movie_view_renderer.clone(),
             &self.descriptors.device,
