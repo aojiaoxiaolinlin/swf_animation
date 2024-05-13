@@ -1,6 +1,6 @@
 use std::{path::Path, sync::Arc};
 
-use swf::{CharacterId, HeaderExt};
+use swf::{CharacterId, Fixed8, HeaderExt, Rectangle, Twips};
 use thiserror::Error;
 pub type SwfStream<'a> = swf::read::Reader<'a>;
 
@@ -76,6 +76,21 @@ impl SwfMovie {
 
     pub fn data(&self) -> &[u8] {
         &self.data
+    }
+    pub fn stage_size(&self) -> &Rectangle<Twips> {
+        self.header.stage_size()
+    }
+    pub fn width(&self) -> Twips {
+        self.stage_size().width()
+    }
+    pub fn height(&self) -> Twips {
+        self.stage_size().height()
+    }
+    pub fn num_frames(&self) -> u16 {
+        self.header.num_frames()
+    }
+    pub fn frame_rate(&self) -> Fixed8 {
+        self.header.frame_rate()
     }
     pub fn version(&self) -> u8 {
         self.header.version()

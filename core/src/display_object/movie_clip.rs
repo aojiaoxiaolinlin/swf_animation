@@ -34,12 +34,12 @@ pub struct MovieClip {
 }
 
 impl MovieClip {
-    pub fn new(data: Vec<u8>) -> Self {
+    pub fn new(swf_movie: Arc<SwfMovie>) -> Self {
         Self {
             base: Default::default(),
             static_data: MovieClipData {
                 id: 0,
-                swf: SwfSlice::from(Arc::new(SwfMovie::from_data(&data).unwrap())),
+                swf: SwfSlice::from(swf_movie),
                 total_frames: 1,
                 frame_labels: Vec::new(),
                 frame_labels_map: HashMap::new(),

@@ -1,5 +1,9 @@
 use std::{
-    collections::VecDeque, path::PathBuf, sync::{Arc, Mutex}, time::{Duration, Instant}
+    collections::VecDeque,
+    ops::DerefMut,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::{Duration, Instant},
 };
 
 use ruffle_render::{
@@ -9,8 +13,12 @@ use ruffle_render::{
 
 use crate::{
     config::Letterbox,
-    display_object::stage::{Stage, StageAlign, StageScaleMode},
-    library::Library,
+    context::UpdateContext,
+    display_object::{
+        movie_clip::{self, MovieClip},
+        stage::{self, Stage, StageAlign, StageScaleMode},
+    },
+    library::{self, Library},
     tag_utils::SwfMovie,
 };
 pub const NEWEST_PLAYER_VERSION: u8 = 32;
@@ -22,9 +30,9 @@ pub struct PlayerData {
     // timers: Timers,
 }
 impl PlayerData {
-    // fn update_context(&mut self) -> (Stage, &mut Library) {
-    //     (self.stage, &mut self.library)
-    // }
+    fn update_context(&mut self) -> (&mut Stage, &mut Library) {
+        (&mut self.stage, &mut self.library)
+    }
 }
 pub struct Player {
     player_version: u8,
@@ -104,23 +112,44 @@ impl Player {
         self.needs_render
     }
 
-    pub fn load_movie(&mut self, movie_path: &PathBuf){
+    pub fn load_movie(&mut self, movie_path: &PathBuf) {
         let movie = SwfMovie::from_path(movie_path).unwrap();
-        self.swf = Arc::new(movie);
+        let movie = Arc::new(movie);
+        let mut movie_clip = MovieClip::new(movie.clone());
+        self.update_context(|update_context| {
+            movie_clip.parse(update_context);
+            update_context.set_root_movie(movie.clone())
+        });
+        self.swf = movie.clone();
     }
 
-    pub fn tick(&mut self){
+    pub fn tick(&mut self) {
         self.run_frame()
     }
     pub fn run_frame(&mut self) {
         dbg!("run_frame");
     }
 
-    pub fn render(&mut self) {
-        
+    pub fn render(&mut self) {}
+
+    pub fn update_context<F, R>(&mut self, f: F) -> R
+    where
+        F: for<'a> FnOnce(&mut UpdateContext<'a>) -> R,
+    {
+        let (stage, library) = self.player_data.update_context();
+
+        let mut update_context = UpdateContext {
+            library,
+            stage,
+            player_version: self.player_version,
+            renderer: self.renderer.deref_mut(),
+            forced_frame_rate: self.forced_frame_rate,
+            frame_rate: &mut self.frame_rate,
+        };
+
+        let ret = f(&mut update_context);
+        ret
     }
-
-
 }
 pub struct PlayerBuilder {
     movie: Option<SwfMovie>,
@@ -256,29 +285,27 @@ impl PlayerBuilder {
         let fake_movie = Arc::new(SwfMovie::empty(player_version));
         let frame_rate = self.frame_rate.unwrap_or(24.0);
         let forced_frame_rate = self.frame_rate.is_some();
-        let player = Arc::new( 
-            Mutex::new(Player {
-                player_data: PlayerData{
-                    stage: Stage::empty(self.full_screen, fake_movie.clone()),
-                    library: Library::empty(),
-                },
-                renderer,
-                player_version,
-                swf: fake_movie.clone(),
-                current_frame: None,
-                frame_rate,
-                forced_frame_rate,
-                frame_accumulator: 0.0,
-                recent_run_frame_timings: VecDeque::with_capacity(10),
-                time_offset: 0,
-                start_time: Instant::now(),
-                time_til_next_timer: None,
-                is_playing: self.auto_play,
-                needs_render: true,
-                instance_counter: 0,
-                max_execution_duration: self.max_execution_duration,
-            })
-        );
+        let player = Arc::new(Mutex::new(Player {
+            player_data: PlayerData {
+                stage: Stage::empty(self.full_screen, fake_movie.clone()),
+                library: Library::empty(),
+            },
+            renderer,
+            player_version,
+            swf: fake_movie.clone(),
+            current_frame: None,
+            frame_rate,
+            forced_frame_rate,
+            frame_accumulator: 0.0,
+            recent_run_frame_timings: VecDeque::with_capacity(10),
+            time_offset: 0,
+            start_time: Instant::now(),
+            time_til_next_timer: None,
+            is_playing: self.auto_play,
+            needs_render: true,
+            instance_counter: 0,
+            max_execution_duration: self.max_execution_duration,
+        }));
         let mut player_lock = player.lock().unwrap();
         drop(player_lock);
         player
