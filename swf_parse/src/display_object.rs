@@ -1,7 +1,7 @@
 pub mod graphic;
 pub mod morph_shape;
-pub mod movie_clip;
 pub mod stage;
+pub mod movie_clip;
 use std::rc::Rc;
 
 use bitflags::bitflags;
@@ -21,7 +21,6 @@ use swf::{Color, Depth, Point, Rectangle, Twips};
 
 use crate::types::{Degrees, Percent};
 
-use self::movie_clip::MovieClip;
 
 bitflags! {
     /// Bit flags used by `DisplayObject`.
@@ -189,7 +188,7 @@ impl BitmapCache {
 }
 
 pub struct DisplayObjectBase {
-    parent: Option<Rc<DisplayObject>>,
+    // parent: Option<Rc<DisplayObject>>,
     place_frame: u16,
     depth: Depth,
     transform: Transform,
@@ -203,11 +202,10 @@ pub struct DisplayObjectBase {
 
     skew: f64,
 
-    next_avm1_clip: Option<Rc<DisplayObject>>,
 
-    masker: Option<Rc<DisplayObject>>,
+    // masker: Option<Rc<DisplayObject>>,
 
-    masking: Option<Rc<DisplayObject>>,
+    // masking: Option<Rc<DisplayObject>>,
 
     /// 渲染此显示对象时使用的混合模式。
     /// 除默认 BlendMode::Normal 之外的其他值都会隐式地导致 "缓存即位图 "行为。
@@ -239,7 +237,7 @@ pub struct DisplayObjectBase {
 impl Default for DisplayObjectBase {
     fn default() -> Self {
         Self {
-            parent: Default::default(),
+            // parent: Default::default(),
             place_frame: Default::default(),
             depth: Default::default(),
             transform: Default::default(),
@@ -250,9 +248,8 @@ impl Default for DisplayObjectBase {
             scale_x: Percent::from_unit(1.0),
             scale_y: Percent::from_unit(1.0),
             skew: 0.0,
-            next_avm1_clip: None,
-            masker: None,
-            masking: None,
+            // masker: None,
+            // masking: None,
             blend_mode: Default::default(),
             blend_shader: None,
             opaque_background: Default::default(),
@@ -264,11 +261,7 @@ impl Default for DisplayObjectBase {
         }
     }
 }
-#[enum_trait_object(
-    pub enum DisplayObject {
-        MovieClip(MovieClip)
-    }
-)]
+
 pub trait TDisplayObject {
     fn base_mut(&mut self) -> &mut DisplayObjectBase;
     fn set_scaling_grid(&mut self, rect: Rectangle<Twips>) {

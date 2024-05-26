@@ -1,10 +1,12 @@
 mod binary_data;
-mod character;
+pub mod character;
 pub mod config;
-mod context;
-mod display_object;
-mod library;
+pub mod context;
+pub mod display_object;
+pub mod library;
+mod player;
 mod string;
 pub mod tag_utils;
 mod types;
-mod player;
+mod drawing;
+pub mod parse;

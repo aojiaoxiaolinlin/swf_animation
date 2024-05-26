@@ -12,13 +12,11 @@ use ruffle_render::{
 use crate::{
     config::Letterbox,
     display_object::stage::{Stage, StageAlign, StageScaleMode},
-    library::Library,
     tag_utils::SwfMovie,
 };
 pub const NEWEST_PLAYER_VERSION: u8 = 32;
 
 pub struct PlayerData {
-    library: Library,
     stage: Stage,
     // action_queue: ActionQueue
     // timers: Timers,
@@ -248,7 +246,6 @@ impl PlayerBuilder {
             Mutex::new(Player {
                 player_data: PlayerData{
                     stage: Stage::empty(self.full_screen, fake_movie.clone()),
-                    library: Library::empty(),
                 },
                 renderer,
                 player_version,

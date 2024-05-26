@@ -2,7 +2,8 @@ pub mod graphic;
 pub mod morph_shape;
 pub mod movie_clip;
 pub mod stage;
-use std::rc::Rc;
+pub mod bitmap;
+use std::{rc::Rc, sync::Arc};
 
 use bitflags::bitflags;
 
@@ -19,7 +20,7 @@ use ruffle_render::{
 use ruffle_wstr::WString;
 use swf::{Color, Depth, Point, Rectangle, Twips};
 
-use crate::types::{Degrees, Percent};
+use crate::{context::UpdateContext, tag_utils::SwfMovie, types::{Degrees, Percent}};
 
 use self::movie_clip::MovieClip;
 
@@ -264,6 +265,29 @@ impl Default for DisplayObjectBase {
         }
     }
 }
+impl DisplayObjectBase {
+    fn set_depth(&mut self,depth:Depth){
+        self.depth = depth;
+    }
+    fn depth(&self)->Depth{
+        self.depth
+    }
+    fn set_name(&mut self, name: WString) {
+        self.name = Some(name);
+    }
+    fn parent(&self) -> Option<Rc<DisplayObject>> {
+        self.parent.clone()
+    }
+    fn set_parent_ignoring_orphan_list(&mut self, parent: Option<Rc<DisplayObject>>) {
+        self.parent = parent;
+    }
+    fn place_frame(&self) -> u16 {
+        self.place_frame
+    }
+    fn set_place_frame(&mut self, frame: u16) {
+        self.place_frame = frame;
+    }
+}
 #[enum_trait_object(
     pub enum DisplayObject {
         MovieClip(MovieClip)
@@ -271,7 +295,59 @@ impl Default for DisplayObjectBase {
 )]
 pub trait TDisplayObject {
     fn base_mut(&mut self) -> &mut DisplayObjectBase;
+    fn base(&self) -> &DisplayObjectBase;
     fn set_scaling_grid(&mut self, rect: Rectangle<Twips>) {
         self.base_mut().scaling_grid = rect;
     }
+
+    fn set_depth(&mut self, depth: Depth) {
+        self.base_mut().set_depth(depth);
+    }
+    fn movie(&self) -> Arc<SwfMovie>;
+    fn depth(&self) -> Depth {
+        self.base().depth()
+    }
+    fn set_name(&mut self,name:WString){
+        self.base_mut().set_name(name);
+    }
+    fn set_default_root_name(&mut self){
+        if self.movie().is_action_script_3(){
+            let name = WString::from_utf8(&format!("root{}",self.depth()+1));
+            self.set_name(name)
+        }
+    }
+
+    fn parent(&self) -> Option<Rc<DisplayObject>> {
+        self.base().parent()
+    }
+    // fn on_parent_removed(&self, _context: &mut UpdateContext<'a>) {}
+
+    fn set_parent(&mut self, parent: Option<Rc<DisplayObject>>) {
+        let had_parent = self.parent().is_some();
+        self.base_mut()
+            .set_parent_ignoring_orphan_list(parent);
+        let has_parent = self.parent().is_some();
+        let parent_removed = had_parent && !has_parent;
+
+        if parent_removed {
+            // self.on_parent_removed(context);
+        }
+    }
+
+    fn place_frame(&self) -> u16 {
+        self.base().place_frame()
+    }
+    fn set_place_frame(&mut self, frame: u16) {
+        self.base_mut().set_place_frame(frame)
+    }
+    fn swf_version(&self) -> u8 {
+        self.movie().version()
+    }
+}
+
+
+pub enum DisplayObjectWeak {
+    // MovieClip(MovieClipWeak),
+    // Bitmap(BitmapWeak),
+    
 }

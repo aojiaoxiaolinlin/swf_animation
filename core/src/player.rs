@@ -118,6 +118,7 @@ impl Player {
         let mut movie_clip = MovieClip::new(movie.clone());
         self.update_context(|update_context| {
             movie_clip.parse(update_context);
+            update_context.library.length(&movie.clone());
             update_context.set_root_movie(movie.clone())
         });
         self.swf = movie.clone();

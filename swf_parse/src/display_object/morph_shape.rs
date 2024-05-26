@@ -3,7 +3,7 @@ use std::sync::Arc;
 use swf::DefineMorphShape;
 
 use crate::tag_utils::SwfMovie;
-
+#[derive(Debug)]
 pub struct MorphShape {
     static_data: MorphShapeData,
     ratio: u16,
@@ -18,6 +18,7 @@ impl MorphShape {
         }
     }
 }
+#[derive(Debug)]
 pub struct MorphShapeData {
     id: u16,
     start: swf::MorphShape,

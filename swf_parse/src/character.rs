@@ -44,11 +44,11 @@ impl CompressedBitmap {
         }
     }
 }
-
+#[derive(Debug)]
 pub enum Character {
+    MovieClip(MovieClip),
     Graphic(Graphic),
     MorphShape(MorphShape),
-    MovieClip(MovieClip),
     Bitmap {
         compressed: CompressedBitmap,
         handle:RefCell<Option<BitmapHandle>>,

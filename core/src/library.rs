@@ -1,13 +1,12 @@
 use std::{
-    collections::HashMap,
-    sync::{Arc, Weak},
+    borrow::Cow, collections::HashMap, sync::{Arc, Weak}
 };
 
 use ruffle_render::utils::remove_invalid_jpeg_data;
 use swf::CharacterId;
 use weak_table::PtrWeakKeyHashMap;
 
-use crate::{character::Character, tag_utils::SwfMovie};
+use crate::{character::Character, display_object::{bitmap::Bitmap, DisplayObject}, tag_utils::SwfMovie};
 
 pub struct Library {
     movie_libraries: PtrWeakKeyHashMap<Weak<SwfMovie>, MovieLibrary>,
@@ -68,6 +67,18 @@ impl MovieLibrary {
         } else {
             Some(remove_invalid_jpeg_data(data).to_vec())
         };
+    }
+
+    pub fn instantiate_by_id(&self, id: CharacterId) -> Result<DisplayObject,Cow<'static,str>> {
+        if let Some(character) = self.characters.get(&id) {
+            self.instantiate_display_object(id,character)
+        }else {
+            Err("Character id does't exist in the library".into())
+        }
+    }
+    pub fn instantiate_display_object(&self, id: CharacterId, character: &Character) -> Result<DisplayObject,Cow<'static,str>> {
+        todo!()
+        
     }
 
     pub fn length(&self) -> usize {

@@ -4,16 +4,28 @@ use std::sync::Arc;
 
 use ruffle_render::{backend::RenderBackend, commands::CommandList};
 
-use crate::{library::Library, tag_utils::SwfMovie};
+use crate::library::MovieLibrary;
 
-pub struct UpdateContext<'a>{
-    pub library:Library,
+pub struct UpdateContext<'a> {
     pub player_version: u8,
-    // pub swf: &'a mut Arc<SwfMovie>,
-    pub renderer: &'a mut dyn RenderBackend,
+    pub library: &'a mut MovieLibrary,
+    // pub renderer: &'a mut dyn RenderBackend,
 }
-
-pub struct RenderContext<'a>{
+impl<'a> UpdateContext<'a> {
+    pub fn new(
+        player_version: u8,
+        library: &'a mut MovieLibrary,
+        // renderer: &'a mut dyn RenderBackend,
+    ) -> Self {
+        Self {
+            player_version,
+            library,
+            // renderer,
+        }
+    }
+}
+pub struct RenderContext<'a> {
     pub renderer: &'a mut dyn RenderBackend,
-    pub commands:CommandList,
+    pub library: &'a MovieLibrary,
+    pub commands: CommandList,
 }

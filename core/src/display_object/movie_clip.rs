@@ -10,6 +10,7 @@ use std::{
 use crate::{
     binary_data::{self, BinaryData},
     character::{self, Character, CompressedBitmap},
+    container::TDisplayObjectContainer,
     library,
     tag_utils::{Error, SwfMovie},
 };
@@ -21,9 +22,7 @@ use crate::{
 };
 use ruffle_wstr::WString;
 use swf::{
-    extensions::ReadSwfExt,
-    read::{ControlFlow, Reader},
-    CharacterId, DefineBitsLossless, FrameLabelData, TagCode,
+    extensions::ReadSwfExt, read::{ControlFlow, Reader}, CharacterId, DefineBitsLossless, Depth, FrameLabelData, PlaceObject, PlaceObjectAction, SwfStr, TagCode
 };
 
 use super::{graphic::Graphic, morph_shape::MorphShape, DisplayObjectBase, TDisplayObject};
@@ -31,6 +30,7 @@ type FrameNumber = u16;
 pub struct MovieClip {
     pub base: DisplayObjectBase,
     static_data: MovieClipData,
+    current_frame: FrameNumber,
 }
 
 impl MovieClip {
@@ -47,12 +47,14 @@ impl MovieClip {
                 scene_labels_map: HashMap::new(),
                 frame_range: Default::default(),
             },
+            current_frame: 0,
         }
     }
     pub fn new_with_data(id: CharacterId, swf: SwfSlice, num_frames: FrameNumber) -> Self {
         Self {
             base: Default::default(),
             static_data: MovieClipData::with_data(id, swf, num_frames),
+            current_frame: 0,
         }
     }
     pub fn parse(&mut self, context: &mut UpdateContext) {
@@ -272,7 +274,7 @@ impl MovieClip {
                     println!("Place object");
                 }
                 TagCode::PlaceObject2 => {
-                    println!("Place object2");
+                    self.place_object(context, tag_reader, 2);
                 }
                 TagCode::PlaceObject3 => {
                     println!("Place object3");
@@ -603,13 +605,76 @@ impl MovieClip {
         Ok(())
     }
 
+    fn place_object(
+        &mut self,
+        context: &mut UpdateContext,
+        reader: &mut Reader,
+        version: u8,
+    ) -> Result<(), Error> {
+        let place_object = if version == 1 {
+            reader.read_place_object()
+        } else {
+            reader.read_place_object_2_or_3(version)
+        }?;
+        match place_object.action {
+            PlaceObjectAction::Place(id) => {
+                self.instantiate_child(context, id, place_object.depth.into(), &place_object);
+            }
+            PlaceObjectAction::Replace(id) => {
+                // if let Some(child) = self.child_by_depth(place_object.depth.into()) {
+                //     child.replace_with(context, id);
+                //     child.apply_place_object(context, &place_object);
+                //     child.set_place_frame(context, self.current_frame());
+                // }
+            }
+            PlaceObjectAction::Modify => {
+                // if let Some(child) = self.child_by_depth(place_object.depth.into()) {
+                //     child.apply_place_object(context, &place_object);
+                // }
+            }
+        }
+        Ok(())
+    }
+
+    fn instantiate_child(
+        &mut self,
+        context: &mut UpdateContext,
+        id: CharacterId,
+        depth: Depth,
+        place_object: &PlaceObject,
+    ) {
+        
+    }
+
     pub fn movie(&self) -> Arc<SwfMovie> {
         self.static_data.swf.movie.clone()
+    }
+
+    pub fn player_root_movie(movie: Arc<SwfMovie>) -> Self {
+        let num_frames = movie.num_frames();
+        Self {
+            base: Default::default(),
+            static_data: MovieClipData::with_data(0, movie.clone().into(), num_frames),
+            current_frame: 0,
+        }
     }
 }
 impl TDisplayObject for MovieClip {
     fn base_mut(&mut self) -> &mut DisplayObjectBase {
         &mut self.base
+    }
+
+    fn base(&self) -> &DisplayObjectBase {
+        &self.base
+    }
+
+    fn movie(&self) -> Arc<SwfMovie> {
+        self.movie()
+    }
+}
+impl TDisplayObjectContainer for MovieClip {
+    fn container(&mut self) -> crate::container::ChildrenContainer {
+        todo!()
     }
 }
 pub struct MovieClipData {

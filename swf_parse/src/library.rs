@@ -1,44 +1,20 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Weak},
-};
+use std::collections::HashMap;
 
 use ruffle_render::utils::remove_invalid_jpeg_data;
 use swf::CharacterId;
-use weak_table::PtrWeakKeyHashMap;
 
-use crate::{character::Character, tag_utils::SwfMovie};
+use crate::character::Character;
 
-pub struct Library {
-    movie_libraries: PtrWeakKeyHashMap<Weak<SwfMovie>, MovieLibrary>,
-}
-impl Library {
-    pub fn empty() -> Self {
-        Library {
-            movie_libraries: PtrWeakKeyHashMap::new(),
-        }
-    }
-    pub fn library_for_movie_mut(&mut self, movie: Arc<SwfMovie>) -> &mut MovieLibrary {
-        self.movie_libraries
-            .entry(movie.clone())
-            .or_insert_with(|| MovieLibrary::new(movie))
-    }
-    pub fn length(&self,swf:&Arc<SwfMovie>) {
-        dbg!(self.movie_libraries.get(swf).unwrap().length());
-    }
-}
 pub struct MovieLibrary {
     characters: HashMap<CharacterId, Character>,
     jpeg_tables: Option<Vec<u8>>,
-    swf: Arc<SwfMovie>,
 }
 
 impl MovieLibrary {
-    pub fn new(swf: Arc<SwfMovie>) -> Self {
+    pub fn new() -> Self {
         Self {
             characters: HashMap::new(),
             jpeg_tables: None,
-            swf,
         }
     }
     pub fn register_character(&mut self, id: CharacterId, character: Character) {
@@ -68,6 +44,12 @@ impl MovieLibrary {
         } else {
             Some(remove_invalid_jpeg_data(data).to_vec())
         };
+    }
+    pub fn library_for_id_mut(&mut self, id: CharacterId) -> Option<&mut Character> {
+        self.characters.get_mut(&id)
+    }
+    pub fn characters(&self) -> &HashMap<CharacterId, Character> {
+        &self.characters
     }
 
     pub fn length(&self) -> usize {
