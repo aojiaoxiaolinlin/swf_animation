@@ -4,6 +4,6 @@ default-members = ["desktop"]
 resolver = "2"
 
 [workspace.dependencies]
-wgpu = "0.19.4"
+wgpu = "0.20.0"
 futures = "0.3.30"
 anyhow = "1.0"

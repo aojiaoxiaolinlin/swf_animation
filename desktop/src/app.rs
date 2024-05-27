@@ -1,4 +1,7 @@
-use std::{path::{Path, PathBuf}, rc::Rc};
+use std::{
+    path::{Path, PathBuf},
+    rc::Rc,
+};
 
 use crate::{player::PlayerController, render_controller::RenderController};
 use anyhow::Error;
@@ -29,7 +32,6 @@ impl App {
             PlayerController::new(window.clone(), render_controller.descriptors());
         let movie_url = Path::new(MOVIE_CLIP_URL).to_path_buf();
         render_controller.create_movie(&mut player_controller, movie_url.clone());
-
 
         Self {
             movie_url,
