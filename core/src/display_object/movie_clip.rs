@@ -26,7 +26,7 @@ use swf::{
 };
 
 use super::{graphic::Graphic, morph_shape::MorphShape, DisplayObjectBase, TDisplayObject};
-type FrameNumber = u16;
+ type FrameNumber = u16;
 pub struct MovieClip {
     pub base: DisplayObjectBase,
     static_data: MovieClipData,

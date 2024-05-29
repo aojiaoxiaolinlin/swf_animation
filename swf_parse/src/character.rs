@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Rc};
 
 use ruffle_render::bitmap::{BitmapHandle, BitmapSize};
 use swf::DefineBitsLossless;
@@ -46,7 +46,7 @@ impl CompressedBitmap {
 }
 #[derive(Debug)]
 pub enum Character {
-    MovieClip(MovieClip),
+    MovieClip(Rc<RefCell<MovieClip>>),
     Graphic(Graphic),
     MorphShape(MorphShape),
     Bitmap {

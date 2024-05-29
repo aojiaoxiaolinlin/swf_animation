@@ -9,4 +9,3 @@ mod string;
 pub mod tag_utils;
 mod types;
 mod drawing;
-pub mod parse;

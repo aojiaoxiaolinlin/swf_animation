@@ -1,9 +1,15 @@
-use std::collections::HashMap;
+use std::{borrow::Cow, cell::RefCell, collections::HashMap, rc::Rc};
 
 use ruffle_render::utils::remove_invalid_jpeg_data;
 use swf::CharacterId;
 
-use crate::character::Character;
+use crate::{
+    character::Character,
+    display_object::{
+        movie_clip::{self, MovieClip},
+        DisplayObject,
+    },
+};
 
 pub struct MovieLibrary {
     characters: HashMap<CharacterId, Character>,
@@ -27,8 +33,8 @@ impl MovieLibrary {
     pub fn contains_character(&self, id: CharacterId) -> bool {
         self.characters.contains_key(&id)
     }
-    pub fn character_by_id(&mut self, id: CharacterId) -> Option<&mut Character> {
-        self.characters.get_mut(&id)
+    pub fn character_by_id(&mut self, id: CharacterId) -> Option<&Character> {
+        self.characters.get(&id)
     }
 
     pub fn jpeg_tables(&self) -> Option<&[u8]> {
@@ -45,13 +51,27 @@ impl MovieLibrary {
             Some(remove_invalid_jpeg_data(data).to_vec())
         };
     }
-    pub fn library_for_id_mut(&mut self, id: CharacterId) -> Option<&mut Character> {
-        self.characters.get_mut(&id)
-    }
     pub fn characters(&self) -> &HashMap<CharacterId, Character> {
         &self.characters
     }
-
+    pub fn instantiate_by_id(&self, id: CharacterId) -> Result<DisplayObject, Cow<'_, str>> {
+        if let Some(character) = self.characters.get(&id) {
+            self.instantiate_display_object(id, character)
+        } else {
+            dbg!("Character id does't exist in the library");
+            Err("Character id doesn't exist".into())
+        }
+    }
+    pub fn instantiate_display_object(
+        &self,
+        id: CharacterId,
+        character: &Character,
+    ) -> Result<DisplayObject, Cow<'static, str>> {
+        match character {
+            Character::MovieClip(movie_clip) => Ok(movie_clip.clone().into()),
+            _ => Err("Not a DisplayObject".into()),
+        }
+    }
     pub fn length(&self) -> usize {
         self.characters.len()
     }

@@ -1,11 +1,13 @@
 pub mod graphic;
 pub mod morph_shape;
-pub mod stage;
 pub mod movie_clip;
-use std::rc::Rc;
+pub mod stage;
+mod container;
+use std::{cell::RefCell, rc::Rc};
 
 use bitflags::bitflags;
 
+use movie_clip::MovieClip;
 use ruffle_macros::enum_trait_object;
 use ruffle_render::{
     backend::RenderBackend,
@@ -19,8 +21,7 @@ use ruffle_render::{
 use ruffle_wstr::WString;
 use swf::{Color, Depth, Point, Rectangle, Twips};
 
-use crate::types::{Degrees, Percent};
-
+use crate::{character::Character, context::UpdateContext, types::{Degrees, Percent}};
 
 bitflags! {
     /// Bit flags used by `DisplayObject`.
@@ -202,11 +203,9 @@ pub struct DisplayObjectBase {
 
     skew: f64,
 
-
     // masker: Option<Rc<DisplayObject>>,
 
     // masking: Option<Rc<DisplayObject>>,
-
     /// 渲染此显示对象时使用的混合模式。
     /// 除默认 BlendMode::Normal 之外的其他值都会隐式地导致 "缓存即位图 "行为。
     blend_mode: ExtendedBlendMode,
@@ -262,9 +261,14 @@ impl Default for DisplayObjectBase {
     }
 }
 
-pub trait TDisplayObject {
-    fn base_mut(&mut self) -> &mut DisplayObjectBase;
-    fn set_scaling_grid(&mut self, rect: Rectangle<Twips>) {
-        self.base_mut().scaling_grid = rect;
+#[enum_trait_object(
+    pub enum DisplayObject {
+        MovieClip(Rc<RefCell<MovieClip>>),
+    }
+)]
+pub trait TDisplayObject: Into<DisplayObject> {
+    fn set_place_frame(&self, place_frame: u16) {
+        self.into().set_place_frame(place_frame);
+
     }
 }
