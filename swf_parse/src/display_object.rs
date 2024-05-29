@@ -188,6 +188,7 @@ impl BitmapCache {
     }
 }
 
+
 pub struct DisplayObjectBase {
     // parent: Option<Rc<DisplayObject>>,
     place_frame: u16,
@@ -233,6 +234,12 @@ pub struct DisplayObjectBase {
     ///  用于缓存的位图数据。
     cache: Option<BitmapCache>,
 }
+impl DisplayObjectBase {
+    pub fn set_place_frame(&mut self, place_frame: u16) {
+        self.place_frame = place_frame;
+    }
+    
+}
 impl Default for DisplayObjectBase {
     fn default() -> Self {
         Self {
@@ -267,8 +274,9 @@ impl Default for DisplayObjectBase {
     }
 )]
 pub trait TDisplayObject: Into<DisplayObject> {
-    fn set_place_frame(&self, place_frame: u16) {
-        self.into().set_place_frame(place_frame);
+    fn base_mut(&mut self) -> DisplayObjectBase;
+    fn set_place_frame(&mut self, place_frame: u16) {
+        self.base_mut().set_place_frame(place_frame);
 
     }
 }

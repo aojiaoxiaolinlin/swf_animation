@@ -44,7 +44,6 @@ impl CompressedBitmap {
         }
     }
 }
-#[derive(Debug)]
 pub enum Character {
     MovieClip(Rc<RefCell<MovieClip>>),
     Graphic(Graphic),

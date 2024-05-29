@@ -1,16 +1,18 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::{RefCell, RefMut}, rc::Rc};
 
 use swf::{CharacterId, Depth, PlaceObject, PlaceObjectAction, Tag};
 
 use crate::{character::Character, context::UpdateContext, library};
 
-use super::{container::TDisplayObjectContainer, graphic::Graphic, DisplayObjectBase, TDisplayObject};
+use super::{
+    container::TDisplayObjectContainer, graphic::Graphic, DisplayObjectBase, TDisplayObject,
+};
 
 type FrameNumber = u16;
-#[derive(Debug)]
 pub struct MovieClip {
     id: CharacterId,
     pub total_frames: u16,
+    base: DisplayObjectBase,
 }
 
 impl MovieClip {
@@ -18,10 +20,11 @@ impl MovieClip {
         Self {
             id: 0,
             total_frames: 1,
+            base: DisplayObjectBase::default(),
         }
     }
     pub fn new_witch_data(id: CharacterId, total_frames: FrameNumber) -> Self {
-        Self { id, total_frames }
+        Self { id, total_frames, base: DisplayObjectBase::default() }
     }
     fn instantiate_child(
         &mut self,
@@ -31,19 +34,17 @@ impl MovieClip {
         place_object: &Box<PlaceObject>,
     ) {
         let library = update_context.library_mut();
-        match library.instantiate_by_id(id){
-            Ok(child)=>{
-                let prev_child = self.replace_at_depth(update_context,child,depth);
-                {
-                    
-                }
+        match library.instantiate_by_id(id) {
+            Ok(mut child) => {
+                let prev_child = self.replace_at_depth(update_context,&mut child, depth);
+                {}
             }
-            Err(e)=>{
+            Err(e) => {
                 dbg!(e);
             }
         }
     }
-    pub fn parese_tag(&mut self, tags: Vec<Tag>, update_context: &mut UpdateContext<'_>) {
+    pub fn parse_tag(&mut self, tags: Vec<Tag>, update_context: &mut UpdateContext<'_>) {
         for tag in tags {
             match tag {
                 Tag::PlaceObject(place_object) => {
@@ -77,7 +78,7 @@ impl MovieClip {
                     // 递归解析下一个 MovieClip
                     movie_clip
                         .borrow_mut()
-                        .parese_tag(define_sprite.tags, update_context);
+                        .parse_tag(define_sprite.tags, update_context);
                 }
                 Tag::FrameLabel(frame_label) => {
                     println!("{:?}", frame_label.label);
@@ -122,10 +123,10 @@ impl MovieClip {
     }
 }
 
-
-impl TDisplayObject for Rc<RefCell<MovieClip>>{
+impl TDisplayObject for Rc<RefCell<MovieClip>> {
+    fn base_mut(&mut self)->DisplayObjectBase {
+        self.borrow_mut()
+    }
 }
 
-impl TDisplayObjectContainer for MovieClip {
-    
-}
+impl TDisplayObjectContainer for MovieClip {}

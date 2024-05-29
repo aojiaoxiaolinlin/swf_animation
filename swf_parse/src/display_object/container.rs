@@ -8,15 +8,9 @@ pub trait TDisplayObjectContainer {
     fn replace_at_depth(
         &self,
         update_context: &mut UpdateContext<'_>,
-        child: Character,
+        child: &mut DisplayObject,
         depth: Depth,
     ) {
-        
-    }
-}
-pub trait TDisplayObjectContainer {
-    fn replace_at_depth(&self, update_context:&mut UpdateContext<'_>, child: DisplayObject, depth:Depth){
         child.set_place_frame(0);
-        
     }
 }
