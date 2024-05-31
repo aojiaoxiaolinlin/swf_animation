@@ -7,7 +7,6 @@ use std::{cell::RefCell, rc::Rc};
 
 use bitflags::bitflags;
 
-use container::ChildContainer;
 use morph_shape::MorphShape;
 use movie_clip::MovieClip;
 use ruffle_macros::enum_trait_object;

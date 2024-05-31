@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap};
+use std::{borrow::Cow, cell::RefCell, collections::HashMap, rc::Rc};
 
 use ruffle_render::utils::remove_invalid_jpeg_data;
 use swf::CharacterId;
@@ -48,7 +48,7 @@ impl MovieLibrary {
     pub fn characters(&self) -> &HashMap<CharacterId, Character> {
         &self.characters
     }
-    pub fn instantiate_by_id(&self, id: CharacterId) -> Result<DisplayObject, Cow<'_, str>> {
+    pub fn instantiate_by_id(&self, id: CharacterId) -> Result<Rc<RefCell<DisplayObject>>, Cow<'_, str>> {
         if let Some(character) = self.characters.get(&id) {
             Self::instantiate_display_object(id, character.clone())
         } else {
@@ -59,9 +59,9 @@ impl MovieLibrary {
     pub fn instantiate_display_object(
         id: CharacterId,
         character: Character,
-    ) -> Result<DisplayObject, Cow<'static, str>> {
+    ) -> Result<Rc<RefCell<DisplayObject>>, Cow<'static, str>> {
         match character {
-            Character::MovieClip(movie_clip) => Ok(movie_clip.into()),
+            Character::MovieClip(movie_clip) => Ok(Rc::new(RefCell::new(movie_clip.into()))),
             _ => Err("Not a DisplayObject".into()),
         }
     }

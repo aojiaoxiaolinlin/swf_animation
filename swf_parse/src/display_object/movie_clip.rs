@@ -53,8 +53,9 @@ impl MovieClip {
         let library = update_context.library_mut();
         match library.instantiate_by_id(id) {
             Ok(mut child) => {
-                let prev_child = self.replace_at_depth(update_context, &mut child, depth);
+                let prev_child = self.replace_at_depth(update_context, child.clone(), depth);
                 {
+                    let mut child = child.borrow_mut();
                     child.set_instantiated_by_timeline(true);
                     child.set_depth(depth);
                     child.set_place_frame(self.current_frame);
