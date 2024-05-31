@@ -274,7 +274,7 @@ impl MovieClip {
                     println!("Place object");
                 }
                 TagCode::PlaceObject2 => {
-                    self.place_object(context, tag_reader, 2);
+                    self.place_object(context, tag_reader, 2).unwrap();
                 }
                 TagCode::PlaceObject3 => {
                     println!("Place object3");

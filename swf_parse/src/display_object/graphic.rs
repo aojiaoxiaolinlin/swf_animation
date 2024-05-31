@@ -5,7 +5,7 @@ use swf::{CharacterId, Rectangle, Shape, Twips};
 
 use crate::tag_utils::SwfMovie;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Graphic {
     static_data: GraphicData,
 }
@@ -20,7 +20,7 @@ impl Graphic {
         Graphic { static_data }
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct GraphicData {
     id: CharacterId,
     shape: Shape,

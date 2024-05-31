@@ -1,17 +1,23 @@
-use std::{cell::{RefCell, RefMut}, rc::Rc};
+use std::{
+    cell::{RefCell, RefMut},
+    rc::Rc,
+};
 
 use swf::{CharacterId, Depth, PlaceObject, PlaceObjectAction, Tag};
 
 use crate::{character::Character, context::UpdateContext, library};
 
 use super::{
-    container::TDisplayObjectContainer, graphic::Graphic, DisplayObjectBase, TDisplayObject,
+    container::TDisplayObjectContainer, graphic::Graphic, DisplayObject, DisplayObjectBase,
+    TDisplayObject,
 };
 
 type FrameNumber = u16;
+#[derive(Clone)]
 pub struct MovieClip {
     id: CharacterId,
-    pub total_frames: u16,
+    pub total_frames: FrameNumber,
+    current_frame: FrameNumber,
     base: DisplayObjectBase,
 }
 
@@ -20,11 +26,17 @@ impl MovieClip {
         Self {
             id: 0,
             total_frames: 1,
+            current_frame: 0,
             base: DisplayObjectBase::default(),
         }
     }
     pub fn new_witch_data(id: CharacterId, total_frames: FrameNumber) -> Self {
-        Self { id, total_frames, base: DisplayObjectBase::default() }
+        Self {
+            id,
+            current_frame: 0,
+            total_frames,
+            base: DisplayObjectBase::default(),
+        }
     }
     fn instantiate_child(
         &mut self,
@@ -36,15 +48,20 @@ impl MovieClip {
         let library = update_context.library_mut();
         match library.instantiate_by_id(id) {
             Ok(mut child) => {
-                let prev_child = self.replace_at_depth(update_context,&mut child, depth);
-                {}
+                let prev_child = self.replace_at_depth(update_context, &mut child, depth);
+                {
+                    child.set_instantiated_by_timeline(true);
+                    child.set_depth(depth);
+                    child.set_place_frame(self.current_frame);
+                    
+                }
             }
             Err(e) => {
                 dbg!(e);
             }
         }
     }
-    pub fn parse_tag(&mut self, tags: Vec<Tag>, update_context: &mut UpdateContext<'_>) {
+    pub fn run_frame(&mut self, tags: Vec<Tag>, update_context: &mut UpdateContext<'_>) {
         for tag in tags {
             match tag {
                 Tag::PlaceObject(place_object) => {
@@ -63,22 +80,26 @@ impl MovieClip {
                         println!("{:?}", name);
                     }
                 }
+                _ => {}
+            }
+        }
+    }
+    pub fn parse_tag(&mut self, tags: Vec<Tag>, update_context: &mut UpdateContext<'_>) {
+        for tag in tags {
+            match tag {
                 Tag::SetBackgroundColor(set_background_color) => {
                     println!("{:?}", set_background_color);
                 }
                 Tag::DefineSprite(define_sprite) => {
-                    let movie_clip =
+                    let mut movie_clip =
                         MovieClip::new_witch_data(define_sprite.id, define_sprite.num_frames);
-                    let movie_clip = Rc::new(RefCell::new(movie_clip));
-                    // 存入库
-                    update_context.library.register_character(
-                        define_sprite.id,
-                        Character::MovieClip(movie_clip.clone()),
-                    );
+                    // let movie_clip = Rc::new(RefCell::new(movie_clip));
                     // 递归解析下一个 MovieClip
-                    movie_clip
-                        .borrow_mut()
-                        .parse_tag(define_sprite.tags, update_context);
+                    movie_clip.parse_tag(define_sprite.tags, update_context);
+                    // 存入库
+                    update_context
+                        .library
+                        .register_character(define_sprite.id, Character::MovieClip(movie_clip));
                 }
                 Tag::FrameLabel(frame_label) => {
                     println!("{:?}", frame_label.label);
@@ -95,6 +116,7 @@ impl MovieClip {
                         println!("{:?}", character_id);
                     }
                 }
+                Tag::DefineSceneAndFrameLabelData(_define_scene_and_frame_label_data) => {}
                 // 空
                 Tag::DefineBits { id, .. } => {
                     dbg!(id);
@@ -117,16 +139,34 @@ impl MovieClip {
                 Tag::DefineBitsLossless(define_bits_lossless) => {
                     dbg!(define_bits_lossless.id);
                 }
+                Tag::DefineText(_define_text) => {}
+
+                Tag::DefineFont(_define_font) => {}
+                Tag::DefineFont2(_define_font2) => {}
+                Tag::DefineFont4(_define_font4) => {}
+                Tag::DefineFontAlignZones {
+                    id: _,
+                    thickness: _,
+                    zones: _,
+                } => {}
+                Tag::DefineFontName {
+                    id: _,
+                    name: _,
+                    copyright_info: _,
+                } => {}
                 _ => {}
             }
         }
     }
 }
 
-impl TDisplayObject for Rc<RefCell<MovieClip>> {
-    fn base_mut(&mut self)->DisplayObjectBase {
-        self.borrow_mut()
+impl TDisplayObject for MovieClip {
+    fn base_mut(&mut self) -> &mut DisplayObjectBase {
+        &mut self.base
+    }
+
+    fn set_place_frame(&mut self, place_frame: u16) {
+        self.base_mut().set_place_frame(place_frame);
     }
 }
-
 impl TDisplayObjectContainer for MovieClip {}

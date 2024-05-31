@@ -1,12 +1,13 @@
+mod container;
 pub mod graphic;
 pub mod morph_shape;
 pub mod movie_clip;
 pub mod stage;
-mod container;
 use std::{cell::RefCell, rc::Rc};
 
 use bitflags::bitflags;
 
+use morph_shape::MorphShape;
 use movie_clip::MovieClip;
 use ruffle_macros::enum_trait_object;
 use ruffle_render::{
@@ -19,9 +20,13 @@ use ruffle_render::{
     transform::Transform,
 };
 use ruffle_wstr::WString;
-use swf::{Color, Depth, Point, Rectangle, Twips};
+use swf::{Color, ColorTransform, Depth, Point, Rectangle, Twips};
 
-use crate::{character::Character, context::UpdateContext, types::{Degrees, Percent}};
+use crate::{
+    character::Character,
+    context::UpdateContext,
+    types::{Degrees, Percent},
+};
 
 bitflags! {
     /// Bit flags used by `DisplayObject`.
@@ -188,7 +193,7 @@ impl BitmapCache {
     }
 }
 
-
+#[derive(Clone)]
 pub struct DisplayObjectBase {
     // parent: Option<Rc<DisplayObject>>,
     place_frame: u16,
@@ -238,7 +243,9 @@ impl DisplayObjectBase {
     pub fn set_place_frame(&mut self, place_frame: u16) {
         self.place_frame = place_frame;
     }
-    
+    pub fn set_color_transform(&mut self,color_transform:ColorTransform){
+        self.transform.color_transform = color_transform;
+    }
 }
 impl Default for DisplayObjectBase {
     fn default() -> Self {
@@ -270,13 +277,55 @@ impl Default for DisplayObjectBase {
 
 #[enum_trait_object(
     pub enum DisplayObject {
-        MovieClip(Rc<RefCell<MovieClip>>),
+        MovieClip(MovieClip),
+        MorphShape(MorphShape)
     }
 )]
 pub trait TDisplayObject: Into<DisplayObject> {
-    fn base_mut(&mut self) -> DisplayObjectBase;
+    fn base_mut(&mut self) -> &mut DisplayObjectBase;
     fn set_place_frame(&mut self, place_frame: u16) {
         self.base_mut().set_place_frame(place_frame);
-
+    }
+    fn set_depth(&mut self, depth: Depth) {
+        self.base_mut().depth = depth;
+    }
+    fn set_instantiated_by_timeline(&mut self, instantiated_by_timeline: bool) {
+        self.base_mut().flags.set(
+            DisplayObjectFlags::INSTANTIATED_BY_TIMELINE,
+            instantiated_by_timeline,
+        );
+    }
+    fn set_color_transform(&mut self,color_transform:ColorTransform){
+        self.base_mut().set_color_transform(color_transform);
+    }
+    fn set_bitmap_cached_preference(&mut self, is_bitmap_cached: bool) {
+        self.base_mut().flags.set(DisplayObjectFlags::CACHE_AS_BITMAP, is_bitmap_cached);
+    }
+    fn set_blend_mode(&mut self, blend_mode: ExtendedBlendMode) {
+        self.base_mut().blend_mode = blend_mode;
+    }
+    fn apply_place_object(
+        &mut self,
+        update_context: &mut UpdateContext<'_>,
+        place_object: &swf::PlaceObject,
+    ) {
+        if let Some(color_transform) = &place_object.color_transform{
+            self.set_color_transform(*color_transform);
+        }
+        if let Some(ratio) = place_object.ratio {
+            if let Some(mut morph_shape) = self.as_morph_shape(){
+                morph_shape.set_ratio(ratio);
+            }
+        }
+        if let Some(is_bitmap_cached) = place_object.is_bitmap_cached {
+            self.set_bitmap_cached_preference(is_bitmap_cached)
+        }
+        if let Some(blend_mode) = place_object.blend_mode{
+            self.set_blend_mode(blend_mode.into());
+        }
+        
+    }
+    fn as_morph_shape(&mut self) -> Option<&mut morph_shape::MorphShape> {
+        None
     }
 }

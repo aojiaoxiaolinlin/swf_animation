@@ -1,15 +1,9 @@
-use std::{borrow::Cow, cell::RefCell, collections::HashMap, rc::Rc};
+use std::{borrow::Cow, collections::HashMap};
 
 use ruffle_render::utils::remove_invalid_jpeg_data;
 use swf::CharacterId;
 
-use crate::{
-    character::Character,
-    display_object::{
-        movie_clip::{self, MovieClip},
-        DisplayObject,
-    },
-};
+use crate::{character::Character, display_object::DisplayObject};
 
 pub struct MovieLibrary {
     characters: HashMap<CharacterId, Character>,
@@ -56,19 +50,18 @@ impl MovieLibrary {
     }
     pub fn instantiate_by_id(&self, id: CharacterId) -> Result<DisplayObject, Cow<'_, str>> {
         if let Some(character) = self.characters.get(&id) {
-            self.instantiate_display_object(id, character)
+            Self::instantiate_display_object(id, character.clone())
         } else {
             dbg!("Character id does't exist in the library");
             Err("Character id doesn't exist".into())
         }
     }
     pub fn instantiate_display_object(
-        &self,
         id: CharacterId,
-        character: &Character,
+        character: Character,
     ) -> Result<DisplayObject, Cow<'static, str>> {
         match character {
-            Character::MovieClip(movie_clip) => Ok(movie_clip.clone().into()),
+            Character::MovieClip(movie_clip) => Ok(movie_clip.into()),
             _ => Err("Not a DisplayObject".into()),
         }
     }

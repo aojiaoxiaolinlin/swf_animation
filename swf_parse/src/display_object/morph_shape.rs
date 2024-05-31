@@ -3,7 +3,9 @@ use std::sync::Arc;
 use swf::DefineMorphShape;
 
 use crate::tag_utils::SwfMovie;
-#[derive(Debug)]
+
+use super::{DisplayObjectBase, TDisplayObject};
+#[derive(Debug, Clone)]
 pub struct MorphShape {
     static_data: MorphShapeData,
     ratio: u16,
@@ -17,8 +19,11 @@ impl MorphShape {
             ratio: 0,
         }
     }
+    pub fn set_ratio(&mut self, ratio: u16) {
+        self.ratio = ratio;
+    }
 }
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MorphShapeData {
     id: u16,
     start: swf::MorphShape,
@@ -33,5 +38,14 @@ impl MorphShapeData {
             end: swf_shape.end.clone(),
             movie,
         }
+    }
+}
+
+impl TDisplayObject for MorphShape {
+    fn base_mut(&mut self) ->  &mut DisplayObjectBase {
+        todo!()
+    }
+    fn as_morph_shape(&mut self) -> Option< &mut self::MorphShape> {
+        Some(self)
     }
 }

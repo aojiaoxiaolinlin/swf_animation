@@ -1,9 +1,7 @@
-use std::sync::Arc;
 
 // use ruffle_render::backend::RenderBackend;
 
 use ruffle_render::{backend::RenderBackend, commands::CommandList};
-use swf::CharacterId;
 
 use crate::library::MovieLibrary;
 
