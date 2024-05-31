@@ -25,7 +25,7 @@ fn main() {
     let player_version = parse_swf.header.swf_header().version;
     let mut movie_library = MovieLibrary::new();
     let mut update_context = UpdateContext::new(player_version, &mut movie_library);
-    let mut movie_clip = MovieClip::empty();
+    let mut movie_clip = MovieClip::empty(parse_swf.header.swf_header().version);
     movie_clip.parse_tag(parse_swf.tags, &mut update_context);
     movie_clip.run_frame(swf::parse_swf(&swf_buf).unwrap().tags, &mut update_context);
     dbg!(update_context.library.length());

@@ -5,10 +5,10 @@ use std::{
 
 use swf::{CharacterId, Depth, PlaceObject, PlaceObjectAction, Tag};
 
-use crate::{character::Character, context::UpdateContext, library};
+use crate::{character::Character, context::UpdateContext, library, string::SwfStrExt};
 
 use super::{
-    container::TDisplayObjectContainer, graphic::Graphic, DisplayObject, DisplayObjectBase,
+    container::{ChildContainer, TDisplayObjectContainer}, graphic::Graphic, DisplayObject, DisplayObjectBase,
     TDisplayObject,
 };
 
@@ -18,16 +18,20 @@ pub struct MovieClip {
     id: CharacterId,
     pub total_frames: FrameNumber,
     current_frame: FrameNumber,
+    container: ChildContainer,
     base: DisplayObjectBase,
 }
 
 impl MovieClip {
-    pub fn empty() -> Self {
+    pub fn empty(swf_version:u8) -> Self {
+        let mut base = DisplayObjectBase::default();
+        base.swf_version = swf_version;
         Self {
             id: 0,
             total_frames: 1,
             current_frame: 0,
-            base: DisplayObjectBase::default(),
+            base,
+            container: ChildContainer::new(),
         }
     }
     pub fn new_witch_data(id: CharacterId, total_frames: FrameNumber) -> Self {
@@ -36,6 +40,7 @@ impl MovieClip {
             current_frame: 0,
             total_frames,
             base: DisplayObjectBase::default(),
+            container: ChildContainer::new(),
         }
     }
     fn instantiate_child(
@@ -53,8 +58,25 @@ impl MovieClip {
                     child.set_instantiated_by_timeline(true);
                     child.set_depth(depth);
                     child.set_place_frame(self.current_frame);
+                    child.apply_place_object(update_context, place_object);
+
+                    if let Some(name) = &place_object.name {
+                        let encoding = swf::SwfStr::encoding_for_version(self.swf_version());
+                        let name = name.decode(encoding).into_owned();
+                        child.set_name(name);
+                        child.set_has_explicit_name(true);
+                    }
+
+                    if let Some(clicp_depth) = place_object.clip_depth {
+                        child.set_clip_depth(clicp_depth);
                     
+                    }
+                    // child.post_instantiation(update_context);
+                    // child.entry_frame(update_context);
                 }
+                // if let Some(prev_child) = prev_child {
+                //     dispatch_removed_event(prev_child, update_context);
+                // }
             }
             Err(e) => {
                 dbg!(e);
@@ -168,5 +190,13 @@ impl TDisplayObject for MovieClip {
     fn set_place_frame(&mut self, place_frame: u16) {
         self.base_mut().set_place_frame(place_frame);
     }
+    
+    fn base(&self) ->  &DisplayObjectBase {
+        &self.base
+    }
 }
-impl TDisplayObjectContainer for MovieClip {}
+impl TDisplayObjectContainer for MovieClip {
+        fn raw_container_mut(&mut self) ->  &mut ChildContainer {
+        &mut self.container
+    }
+}

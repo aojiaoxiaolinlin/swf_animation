@@ -7,6 +7,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use bitflags::bitflags;
 
+use container::ChildContainer;
 use morph_shape::MorphShape;
 use movie_clip::MovieClip;
 use ruffle_macros::enum_trait_object;
@@ -195,6 +196,7 @@ impl BitmapCache {
 
 #[derive(Clone)]
 pub struct DisplayObjectBase {
+    swf_version: u8,
     // parent: Option<Rc<DisplayObject>>,
     place_frame: u16,
     depth: Depth,
@@ -243,13 +245,22 @@ impl DisplayObjectBase {
     pub fn set_place_frame(&mut self, place_frame: u16) {
         self.place_frame = place_frame;
     }
-    pub fn set_color_transform(&mut self,color_transform:ColorTransform){
+    pub fn set_color_transform(&mut self, color_transform: ColorTransform) {
         self.transform.color_transform = color_transform;
+    }
+    pub fn set_filters(&mut self, filters: Vec<Filter>) -> bool {
+        if filters != self.filters {
+            self.filters = filters;
+            true
+        } else {
+            false
+        }
     }
 }
 impl Default for DisplayObjectBase {
     fn default() -> Self {
         Self {
+            swf_version: 0,
             // parent: Default::default(),
             place_frame: Default::default(),
             depth: Default::default(),
@@ -276,6 +287,7 @@ impl Default for DisplayObjectBase {
 }
 
 #[enum_trait_object(
+    #[derive(Clone)]
     pub enum DisplayObject {
         MovieClip(MovieClip),
         MorphShape(MorphShape)
@@ -283,6 +295,7 @@ impl Default for DisplayObjectBase {
 )]
 pub trait TDisplayObject: Into<DisplayObject> {
     fn base_mut(&mut self) -> &mut DisplayObjectBase;
+    fn base(&self) -> &DisplayObjectBase;
     fn set_place_frame(&mut self, place_frame: u16) {
         self.base_mut().set_place_frame(place_frame);
     }
@@ -295,35 +308,86 @@ pub trait TDisplayObject: Into<DisplayObject> {
             instantiated_by_timeline,
         );
     }
-    fn set_color_transform(&mut self,color_transform:ColorTransform){
+    fn set_color_transform(&mut self, color_transform: ColorTransform) {
         self.base_mut().set_color_transform(color_transform);
     }
     fn set_bitmap_cached_preference(&mut self, is_bitmap_cached: bool) {
-        self.base_mut().flags.set(DisplayObjectFlags::CACHE_AS_BITMAP, is_bitmap_cached);
+        self.base_mut()
+            .flags
+            .set(DisplayObjectFlags::CACHE_AS_BITMAP, is_bitmap_cached);
     }
     fn set_blend_mode(&mut self, blend_mode: ExtendedBlendMode) {
         self.base_mut().blend_mode = blend_mode;
+    }
+    fn swf_version(&self) -> u8 {
+        self.base().swf_version
+    }
+    fn visible(&self) -> bool {
+        self.base().flags.contains(DisplayObjectFlags::VISIBLE)
+    }
+    fn set_visible(&mut self, visible: bool) {
+        let changed = self.visible() != visible;
+        self.base_mut()
+            .flags
+            .set(DisplayObjectFlags::VISIBLE, changed);
+    }
+    fn set_opaque_background(&mut self, color: Option<Color>) {
+        let color = color.map(|mut value| {
+            value.a = 255;
+            value
+        });
+        self.base_mut().opaque_background = color;
+    }
+    fn set_filters(&mut self, filters: Vec<Filter>) {
+       self.base_mut().set_filters(filters);
+    }
+    fn set_name(&mut self, name: WString) {
+        self.base_mut().name = Some(name);
+    }
+    fn set_has_explicit_name(&mut self, has_explicit_name: bool) {
+        self.base_mut()
+            .flags
+            .set(DisplayObjectFlags::HAS_EXPLICIT_NAME, has_explicit_name);
+    }
+    fn set_clip_depth(&mut self, clip_depth: Depth) {
+        self.base_mut().clip_depth = clip_depth;
     }
     fn apply_place_object(
         &mut self,
         update_context: &mut UpdateContext<'_>,
         place_object: &swf::PlaceObject,
     ) {
-        if let Some(color_transform) = &place_object.color_transform{
+        if let Some(color_transform) = &place_object.color_transform {
             self.set_color_transform(*color_transform);
         }
         if let Some(ratio) = place_object.ratio {
-            if let Some(mut morph_shape) = self.as_morph_shape(){
+            if let Some(morph_shape) = self.as_morph_shape() {
                 morph_shape.set_ratio(ratio);
             }
         }
         if let Some(is_bitmap_cached) = place_object.is_bitmap_cached {
             self.set_bitmap_cached_preference(is_bitmap_cached)
         }
-        if let Some(blend_mode) = place_object.blend_mode{
+        if let Some(blend_mode) = place_object.blend_mode {
             self.set_blend_mode(blend_mode.into());
         }
-        
+        if self.swf_version() >= 11 {
+            if let Some(visible) = place_object.is_visible {
+                self.set_visible(visible);
+            }
+            if let Some(mut color) = place_object.background_color {
+                let color = if color.a > 0 {
+                    color.a = 255;
+                    Some(color)
+                } else {
+                    None
+                };
+                self.set_opaque_background(color);
+            }
+        }
+        if let Some(filters) = &place_object.filters {
+            self.set_filters(filters.iter().map(Filter::from).collect());
+        }
     }
     fn as_morph_shape(&mut self) -> Option<&mut morph_shape::MorphShape> {
         None

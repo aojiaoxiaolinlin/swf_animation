@@ -48,4 +48,9 @@ impl TDisplayObject for MorphShape {
     fn as_morph_shape(&mut self) -> Option< &mut self::MorphShape> {
         Some(self)
     }
+    
+    fn base(&self) ->  &DisplayObjectBase {
+        todo!()
+    }
+    
 }
