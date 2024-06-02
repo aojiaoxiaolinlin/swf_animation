@@ -52,7 +52,6 @@ impl MovieLibrary {
         if let Some(character) = self.characters.get(&id) {
             Self::instantiate_display_object(id, character.clone())
         } else {
-            dbg!("Character id does't exist in the library");
             Err("Character id doesn't exist".into())
         }
     }

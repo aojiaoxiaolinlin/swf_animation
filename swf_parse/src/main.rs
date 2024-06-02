@@ -1,13 +1,17 @@
 use std::fs::read;
 
+use swf_parse::display_object::TDisplayObject;
 use swf_parse::{
-    context::UpdateContext, display_object::movie_clip::MovieClip, library::MovieLibrary,
+    context::UpdateContext,
+    display_object::{container::TDisplayObjectContainer, movie_clip::MovieClip},
+    library::MovieLibrary,
 };
-
 fn main() {
-    let data =
-        // read("D:\\Code\\Rust\\swf_animation\\desktop\\swf_files\\spirit2471src.swf").unwrap();
-        read("/home/intasect/study/Rust/swf_animation/desktop/swf_files/spirit2471src.swf").unwrap();
+    let data = if cfg!(target_os = "windows") {
+        read("D:\\Code\\Rust\\swf_animation\\desktop\\swf_files\\spirit2471src.swf").unwrap()
+    } else {
+        read("/home/intasect/study/Rust/swf_animation/desktop/swf_files/spirit2471src.swf").unwrap()
+    };
     let swf_buf = swf::decompress_swf(&data[..]).unwrap();
     let parse_swf = swf::parse_swf(&swf_buf).unwrap();
     println!("{:?}", parse_swf.header.swf_header().frame_rate);

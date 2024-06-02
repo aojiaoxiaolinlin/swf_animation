@@ -8,8 +8,9 @@ use swf::{CharacterId, Depth, PlaceObject, PlaceObjectAction, Tag};
 use crate::{character::Character, context::UpdateContext, library, string::SwfStrExt};
 
 use super::{
-    container::{ChildContainer, TDisplayObjectContainer}, graphic::Graphic, DisplayObject, DisplayObjectBase,
-    TDisplayObject,
+    container::{ChildContainer, TDisplayObjectContainer},
+    graphic::Graphic,
+    DisplayObject, DisplayObjectBase, TDisplayObject,
 };
 
 type FrameNumber = u16;
@@ -23,7 +24,7 @@ pub struct MovieClip {
 }
 
 impl MovieClip {
-    pub fn empty(swf_version:u8) -> Self {
+    pub fn empty(swf_version: u8) -> Self {
         let mut base = DisplayObjectBase::default();
         base.swf_version = swf_version;
         Self {
@@ -49,11 +50,12 @@ impl MovieClip {
         id: CharacterId,
         depth: Depth,
         place_object: &Box<PlaceObject>,
-    ) {
+    ) -> Option<Rc<RefCell<DisplayObject>>> {
         let library = update_context.library_mut();
+        dbg!(id);
         match library.instantiate_by_id(id) {
-            Ok(mut child) => {
-                let prev_child = self.replace_at_depth(update_context, child.clone(), depth);
+            Ok(child) => {
+                self.replace_at_depth(child.clone(), depth);
                 {
                     let mut child = child.borrow_mut();
                     child.set_instantiated_by_timeline(true);
@@ -68,19 +70,19 @@ impl MovieClip {
                         child.set_has_explicit_name(true);
                     }
 
-                    if let Some(clicp_depth) = place_object.clip_depth {
-                        child.set_clip_depth(clicp_depth);
-                    
+                    if let Some(clip_depth) = place_object.clip_depth {
+                        child.set_clip_depth(clip_depth);
                     }
-                    // child.post_instantiation(update_context);
-                    // child.entry_frame(update_context);
+                    child.enter_frame(update_context);
                 }
                 // if let Some(prev_child) = prev_child {
                 //     dispatch_removed_event(prev_child, update_context);
                 // }
+                Some(child)
             }
             Err(e) => {
                 dbg!(e);
+                None
             }
         }
     }
@@ -97,10 +99,21 @@ impl MovieClip {
                                 &place_object,
                             );
                         }
-                        _ => {}
-                    }
-                    if let Some(name) = place_object.name {
-                        println!("{:?}", name);
+                        PlaceObjectAction::Replace(id) => {
+                            let current_frame = self.current_frame;
+                            if let Some(child)= self.child_by_depth(place_object.depth.into()) {
+                                // child.borrow().replace_with_id(update_context, id);
+                                let child = Rc::make_mut(&mut *child);
+                                child.get_mut().apply_place_object(update_context, &place_object);
+                                child.get_mut().set_place_frame(current_frame);
+                            }
+                        }
+                        PlaceObjectAction::Modify => {
+                            if let Some(child) = self.child_by_depth(place_object.depth.into()) {
+                                let child = Rc::make_mut(&mut *child);
+                                child.get_mut().apply_place_object(update_context, &place_object);
+                            }
+                        }
                     }
                 }
                 _ => {}
@@ -191,13 +204,23 @@ impl TDisplayObject for MovieClip {
     fn set_place_frame(&mut self, place_frame: u16) {
         self.base_mut().set_place_frame(place_frame);
     }
-    
-    fn base(&self) ->  &DisplayObjectBase {
+
+    fn base(&self) -> &DisplayObjectBase {
         &self.base
+    }
+    fn as_movie_clip(&mut self) -> Option<&mut self::MovieClip> {
+        Some(self)
+    }
+    fn name(&self) -> Option< &ruffle_wstr::WString> {
+        self.base().name.as_ref()
     }
 }
 impl TDisplayObjectContainer for MovieClip {
-        fn raw_container_mut(&mut self) ->  &mut ChildContainer {
+    fn raw_container_mut(&mut self) -> &mut ChildContainer {
         &mut self.container
+    }
+    
+    fn raw_container(&self) -> &ChildContainer {
+        &self.container
     }
 }

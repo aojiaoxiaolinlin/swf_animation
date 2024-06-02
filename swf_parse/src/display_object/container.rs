@@ -1,10 +1,11 @@
 use std::{cell::RefCell, collections::BTreeMap, ops::Bound, rc::Rc};
 
-use swf::Depth;
+use ruffle_macros::enum_trait_object;
+use swf::{CharacterId, Depth};
 
 use crate::context::UpdateContext;
 
-use super::{DisplayObject, TDisplayObject};
+use super::{movie_clip::MovieClip, DisplayObject, TDisplayObject};
 
 #[derive(Clone)]
 pub struct ChildContainer {
@@ -33,6 +34,9 @@ impl ChildContainer {
     }
     fn push_id(&mut self, child: Rc<RefCell<DisplayObject>>) {
         self.render_list_mut().push(child);
+    }
+    fn get_depth(&mut self, depth: Depth) -> Option<&mut Rc<RefCell<DisplayObject>>>{
+        self.depth_list.get_mut(&depth)
     }
     pub fn replace_at_depth(&mut self, depth: Depth, child: Rc<RefCell<DisplayObject>>) {
         let prev_child = self.insert_child_into_depth_list(depth, child.clone());
@@ -70,12 +74,12 @@ impl ChildContainer {
         }
     }
 }
-pub trait TDisplayObjectContainer {
-    fn raw_container_mut(&mut self) -> &mut ChildContainer;
 
+pub trait TDisplayObjectContainer : Into<DisplayObject>{
+    fn raw_container_mut(&mut self) -> &mut ChildContainer;
+    fn raw_container(&self) -> &ChildContainer;
     fn replace_at_depth(
         &mut self,
-        update_context: &mut UpdateContext<'_>,
         child: Rc<RefCell<DisplayObject>>,
         depth: Depth,
     ) {
@@ -84,5 +88,15 @@ pub trait TDisplayObjectContainer {
         let mut child = child.borrow_mut();
         child.set_place_frame(0);
         child.set_depth(depth);
+    }
+
+    fn child_by_depth(&mut self, depth: Depth) -> Option<&mut Rc<RefCell<DisplayObject>>> {
+        self.raw_container_mut().get_depth(depth)
+    }
+    fn replace_with_id(&self, _context: &mut UpdateContext<'_>, _id: CharacterId) {
+        // Noop for most symbols; only shapes can replace their innards with another Graphic.
+    }
+    fn iter_render_list(&self) -> Rc<Vec<Rc<RefCell<DisplayObject>>>> {
+        self.raw_container().render_list.clone()
     }
 }

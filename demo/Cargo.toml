@@ -1,0 +1,11 @@
+[package]
+name = "demo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+swf = { path = "../../ruffle/swf" }
+ruffle_wstr = { path = "../../ruffle/wstr" }
+ruffle_render = { path = "../../ruffle/render" }
+anyhow = { workspace = true }
+bitflags = "2.5.0"
