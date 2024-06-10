@@ -1,12 +1,12 @@
 use crate::{
     character::Character,
-    container::ChildContainer,
-    display_object::{DisplayObjectBase, TDisplayObject},
+    container::{ChildContainer, DisplayObjectContainer, TDisplayObjectContainer},
+    display_object::{DisplayObject, DisplayObjectBase, TDisplayObject},
     graphic::Graphic,
     library::MovieLibrary,
 };
 use anyhow::anyhow;
-use swf::{CharacterId, Depth, HeaderExt, PlaceObjectAction, SwfStr, Tag};
+use swf::{CharacterId, Depth, HeaderExt, PlaceObject, PlaceObjectAction, SwfStr, Tag};
 
 type FrameNumber = u16;
 type SwfVersion = u8;
@@ -15,9 +15,9 @@ type SwfVersion = u8;
 pub struct MovieClip {
     base: DisplayObjectBase,
     swf_version: SwfVersion,
-    id: CharacterId,
+    pub id: CharacterId,
     current_frame: FrameNumber,
-    total_frames: FrameNumber,
+    pub total_frames: FrameNumber,
     frame_labels: Vec<(FrameNumber, String)>,
     container: ChildContainer,
 }
@@ -55,33 +55,9 @@ impl MovieClip {
     pub fn parse_tag(&mut self, tags: Vec<Tag>, library: &mut MovieLibrary) {
         for tag in tags {
             match tag {
-                Tag::PlaceObject(place_object) => match place_object.action {
-                    PlaceObjectAction::Place(id) => {
-                        let child =
-                            self.instantiate_child(id, place_object.depth, &place_object, library);
-                        match child {
-                            Ok(mut child) => {
-                                child.apply_place_object(&place_object, self.swf_version);
-                                if let Some(name) = &place_object.name {
-                                    child.set_name(Some(
-                                        name.to_str_lossy(SwfStr::encoding_for_version(
-                                            self.swf_version,
-                                        ))
-                                        .into_owned(),
-                                    ));
-                                }
-                                if let Some(clip_depth) = place_object.clip_depth {
-                                    child.set_clip_depth(clip_depth);
-                                }
-                            }
-                            Err(e) => {
-                                dbg!(e);
-                            }
-                        }
-                    }
-                    PlaceObjectAction::Replace(id) => {}
-                    PlaceObjectAction::Modify => {}
-                },
+                Tag::PlaceObject(place_object) => {
+                    self.place_object(place_object, library);
+                }
                 Tag::SetBackgroundColor(set_background_color) => {
                     println!("{:?}", set_background_color);
                 }
@@ -127,14 +103,52 @@ impl MovieClip {
         depth: Depth,
         place_object: &swf::PlaceObject,
         library: &mut MovieLibrary,
-    ) -> anyhow::Result<Box<dyn TDisplayObject>> {
+    ) -> anyhow::Result<DisplayObject> {
         if let Some(character) = library.character(id) {
             match character.clone() {
-                Character::MovieClip(movie_clip) => Ok(Box::new(movie_clip)),
-                Character::Graphic(graphic) => Ok(Box::new(graphic)),
+                Character::MovieClip(movie_clip) => Ok(movie_clip.into()),
+                Character::Graphic(graphic) => Ok(graphic.into()),
             }
         } else {
             Err(anyhow!("Character id doesn't exist"))
+        }
+    }
+    fn place_object(&mut self, place_object: Box<PlaceObject>, library: &mut MovieLibrary) {
+        match place_object.action {
+            PlaceObjectAction::Place(id) => {
+                let child = self.instantiate_child(id, place_object.depth, &place_object, library);
+                match child {
+                    Ok(mut child) => {
+                        child.apply_place_object(&place_object, self.swf_version);
+                        if let Some(name) = &place_object.name {
+                            child.set_name(Some(
+                                name.to_str_lossy(SwfStr::encoding_for_version(self.swf_version))
+                                    .into_owned(),
+                            ));
+                        }
+                        if let Some(clip_depth) = place_object.clip_depth {
+                            child.set_clip_depth(clip_depth);
+                        }
+                        child.post_instantiation(library);
+                        self.replace_at_depth(place_object.depth, child);
+                    }
+                    Err(_e) => {
+                        
+                    }
+                }
+            }
+            PlaceObjectAction::Replace(id) => {
+                if let Some(mut child) = self.child_by_depth(place_object.depth.into()) {
+                    child.replace_with(id, library);
+                    child.apply_place_object(&place_object, self.swf_version);
+                    child.set_place_frame(self.current_frame);
+                }
+            }
+            PlaceObjectAction::Modify => {
+                if let Some(mut child) = self.child_by_depth(place_object.depth.into()) {
+                    child.apply_place_object(&place_object, self.swf_version);
+                }
+            }
         }
     }
     pub fn frame_labels(&self) -> &[(FrameNumber, String)] {
@@ -145,5 +159,40 @@ impl MovieClip {
 impl TDisplayObject for MovieClip {
     fn base_mut(&mut self) -> &mut DisplayObjectBase {
         &mut self.base
+    }
+
+    fn base(&self) -> &DisplayObjectBase {
+        &self.base
+    }
+
+    fn character_id(&self) -> CharacterId {
+        self.id
+    }
+
+    fn children(self) -> Option<DisplayObjectContainer> {
+        Some(self.into())
+    }
+    fn as_movie(&mut self) -> Option<MovieClip> {
+        Some(self.clone())
+    }
+}
+impl From<MovieClip> for DisplayObject {
+    fn from(movie_clip: MovieClip) -> Self {
+        DisplayObject::MovieClip(movie_clip)
+    }
+}
+impl TDisplayObjectContainer for MovieClip {
+    fn raw_container(&self) -> &ChildContainer {
+        &self.container
+    }
+
+    fn raw_container_mut(&mut self) -> &mut ChildContainer {
+        &mut self.container
+    }
+}
+
+impl From<MovieClip> for DisplayObjectContainer {
+    fn from(movie_clip: MovieClip) -> Self {
+        DisplayObjectContainer::MovieClip(movie_clip)
     }
 }

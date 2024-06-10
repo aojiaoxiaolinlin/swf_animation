@@ -7,9 +7,9 @@ use ruffle_render::{
     matrix::Matrix,
     transform::Transform,
 };
-use swf::{BlendMode, Color, ColorTransform, Depth, Point};
+use swf::{BlendMode, CharacterId, Color, ColorTransform, Depth, Point};
 
-use crate::morph_shape::MorphShape;
+use crate::{container::DisplayObjectContainer, graphic::Graphic, library::{self, MovieLibrary}, morph_shape::MorphShape, movie_clip::MovieClip};
 bitflags! {
     /// Bit flags used by `DisplayObject`.
     #[derive(Clone, Copy)]
@@ -174,6 +174,7 @@ impl BitmapCache {
 
 #[derive(Clone)]
 pub struct DisplayObjectBase {
+    place_frame: u16,
     depth: Depth,
     name: Option<String>,
     transform: Transform,
@@ -187,6 +188,7 @@ pub struct DisplayObjectBase {
 impl Default for DisplayObjectBase {
     fn default() -> Self {
         Self {
+            place_frame: Default::default(),
             depth: Default::default(),
             name: None,
             transform: Default::default(),
@@ -201,6 +203,9 @@ impl Default for DisplayObjectBase {
 impl DisplayObjectBase {
     pub fn set_name(&mut self, name: Option<String>) {
         self.name = name;
+    }
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
     }
     pub fn set_depth(&mut self, depth: Depth) {
         self.depth = depth;
@@ -260,6 +265,9 @@ impl DisplayObjectBase {
         self.opaque_background = value;
         changed
     }
+    fn set_place_frame(&mut self, frame: u16) {
+        self.place_frame = frame;
+    }
     fn invalidate_cached_bitmap(&mut self) -> bool {
         if self.flags.contains(DisplayObjectFlags::CACHE_INVALIDATED) {
             return false;
@@ -271,7 +279,9 @@ impl DisplayObjectBase {
         true
     }
 }
-pub trait TDisplayObject {
+
+pub trait TDisplayObject: Clone {
+    fn base(&self) -> &DisplayObjectBase;
     fn base_mut(&mut self) -> &mut DisplayObjectBase;
     fn set_name(&mut self, name: Option<String>) {
         self.base_mut().set_name(name);
@@ -343,7 +353,76 @@ pub trait TDisplayObject {
     fn set_visible(&mut self, visible: bool) {
         self.base_mut().set_visible(visible);
     }
+    fn set_place_frame(&mut self, frame: u16) {
+        self.base_mut().set_place_frame(frame);
+    }
+    fn set_depth(&mut self, depth: Depth) {
+        self.base_mut().set_depth(depth);
+    }
+    fn character_id(&self) -> CharacterId;
     fn as_morph_shape(&mut self) -> Option<MorphShape> {
         None
+    }
+    fn as_movie(&mut self) -> Option<MovieClip> {
+        None
+    }
+    fn set_default_instance_name(&mut self, library: &mut library::MovieLibrary) {
+        if self.base().name.is_none() {
+            let name = format!("instance{}", library.instance_count);
+            self.set_name(Some(name));
+            library.instance_count=library.instance_count.wrapping_add(1);
+        }
+        
+    }
+    fn name(&self) -> Option<&str> {
+        self.base().name()
+    }
+    fn post_instantiation(&mut self, library: &mut library::MovieLibrary) {
+        self.set_default_instance_name(library);
+    }
+    fn children(self) -> Option<crate::container::DisplayObjectContainer> {
+        None
+    }
+    fn replace_with(&mut self, id: CharacterId, library: &mut MovieLibrary) {
+        
+    }
+}
+
+#[derive(Clone)]
+pub enum DisplayObject {
+    MovieClip(MovieClip),
+    Graphic(Graphic),
+}
+impl TDisplayObject for DisplayObject {
+    fn base_mut(&mut self) -> &mut DisplayObjectBase {
+        match self {
+            DisplayObject::MovieClip(mc) => mc.base_mut(),
+            DisplayObject::Graphic(g) => g.base_mut(),
+        }
+    }
+    fn base(&self) -> &DisplayObjectBase {
+        match self {
+            DisplayObject::MovieClip(mc) => mc.base(),
+            DisplayObject::Graphic(g) => g.base(),
+        }
+    }
+    fn character_id(&self) -> CharacterId {
+        match self {
+            DisplayObject::MovieClip(mc) => mc.id,
+            DisplayObject::Graphic(g) => g.id,
+        }
+    }
+    
+    fn children(self) -> Option<DisplayObjectContainer> {
+        match self {
+            DisplayObject::MovieClip(mc) => Some(mc.into()),
+            _ => None,
+        }
+    }
+    fn as_movie(&mut self) -> Option<MovieClip> {
+        match self {
+            DisplayObject::MovieClip(mc) => Some(mc.clone()),
+            _ => None,
+        }
     }
 }
