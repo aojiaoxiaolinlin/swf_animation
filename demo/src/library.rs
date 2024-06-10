@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use swf::CharacterId;
 
-use crate::{character::Character, graphic::Graphic};
+use crate::{character::Character, display_object::graphic::Graphic};
 
 pub struct MovieLibrary {
     characters: HashMap<CharacterId, Character>,

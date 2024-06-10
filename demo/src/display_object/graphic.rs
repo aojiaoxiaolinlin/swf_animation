@@ -1,5 +1,3 @@
-use std::error;
-
 use swf::{CharacterId, Rectangle, Shape, Twips};
 
 use crate::{display_object::{DisplayObject, DisplayObjectBase, TDisplayObject}, library::MovieLibrary};

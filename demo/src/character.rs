@@ -1,4 +1,5 @@
-use crate::{graphic::Graphic, movie_clip::MovieClip};
+use crate::display_object::{graphic::Graphic, movie_clip::MovieClip};
+
 
 #[derive(Clone)]
 pub enum Character {

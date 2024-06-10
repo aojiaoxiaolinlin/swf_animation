@@ -2,11 +2,7 @@ use std::{collections::BTreeMap, ops::Bound, rc::Rc};
 
 use swf::Depth;
 
-use crate::{
-    display_object::{DisplayObject, TDisplayObject},
-    graphic::Graphic,
-    movie_clip::MovieClip,
-};
+use crate::display_object::{movie_clip::MovieClip, DisplayObject, TDisplayObject};
 
 #[derive(Clone)]
 pub struct ChildContainer {

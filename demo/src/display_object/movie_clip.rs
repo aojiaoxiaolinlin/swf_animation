@@ -2,11 +2,12 @@ use crate::{
     character::Character,
     container::{ChildContainer, DisplayObjectContainer, TDisplayObjectContainer},
     display_object::{DisplayObject, DisplayObjectBase, TDisplayObject},
-    graphic::Graphic,
     library::MovieLibrary,
 };
 use anyhow::anyhow;
 use swf::{CharacterId, Depth, HeaderExt, PlaceObject, PlaceObjectAction, SwfStr, Tag};
+
+use super::graphic::Graphic;
 
 type FrameNumber = u16;
 type SwfVersion = u8;
@@ -82,7 +83,9 @@ impl MovieClip {
                             .into_owned(),
                     ));
                 }
-                Tag::ShowFrame => {}
+                Tag::ShowFrame => {
+                    self.current_frame += 1;
+                }
                 Tag::DefineShape(define_shape) => {
                     library.register_character(
                         define_shape.id,
@@ -132,9 +135,7 @@ impl MovieClip {
                         child.post_instantiation(library);
                         self.replace_at_depth(place_object.depth, child);
                     }
-                    Err(_e) => {
-                        
-                    }
+                    Err(_e) => {}
                 }
             }
             PlaceObjectAction::Replace(id) => {

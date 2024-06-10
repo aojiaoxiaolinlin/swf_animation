@@ -1,4 +1,11 @@
+pub mod morph_shape;
+pub mod movie_clip;
+pub mod graphic;
+
 use bitflags::bitflags;
+use graphic::Graphic;
+use morph_shape::MorphShape;
+use movie_clip::MovieClip;
 use ruffle_render::{
     backend::RenderBackend,
     bitmap::{BitmapHandle, BitmapInfo},
@@ -9,7 +16,7 @@ use ruffle_render::{
 };
 use swf::{BlendMode, CharacterId, Color, ColorTransform, Depth, Point};
 
-use crate::{container::DisplayObjectContainer, graphic::Graphic, library::{self, MovieLibrary}, morph_shape::MorphShape, movie_clip::MovieClip};
+use crate::{container::DisplayObjectContainer, library::{self, MovieLibrary}};
 bitflags! {
     /// Bit flags used by `DisplayObject`.
     #[derive(Clone, Copy)]

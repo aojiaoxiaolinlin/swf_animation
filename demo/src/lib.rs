@@ -1,17 +1,16 @@
 mod character;
 mod container;
 mod display_object;
-mod graphic;
 mod library;
-mod morph_shape;
-mod movie_clip;
+
 #[cfg(test)]
 mod tests {
     use std::fs::read;
 
     use crate::{
-        container::TDisplayObjectContainer, display_object::TDisplayObject, library::MovieLibrary,
-        movie_clip::MovieClip,
+        container::TDisplayObjectContainer,
+        display_object::{movie_clip::MovieClip, TDisplayObject},
+        library::MovieLibrary,
     };
 
     #[test]
