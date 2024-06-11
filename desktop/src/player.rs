@@ -4,7 +4,7 @@ use std::{
 
 use crate::movie::MovieView;
 use anyhow::anyhow;
-use player_core::{Player, PlayerBuilder};
+use player_core::player::{Player, PlayerBuilder};
 use ruffle_render_wgpu::{backend::WgpuRenderBackend, descriptors::Descriptors};
 use winit::window::Window;
 
@@ -57,15 +57,15 @@ impl ActivePlayer {
             .map_err(|e| anyhow!(e.to_string()))
             .expect("创建WebGPU渲染器失败");
         let player = builder.with_renderer(renderer)
+        .with_movie(movie_url.clone())
             .with_auto_play(true)
-            .with_max_execution_duration(std::time::Duration::from_secs(15)).build();
-
+            .build();
         // let on_metadata = move | swf_header:&ruffle_core::swf::HeaderExt |{
             
         // };
-        let mut player_lock = player.lock().unwrap();
-        player_lock.load_movie(&movie_url);
-        drop(player_lock);
+        // let mut player_lock = player.lock().unwrap();
+        // // player_lock.load_movie(&movie_url);
+        // drop(player_lock);
         Self {
             movie_url,
             player,

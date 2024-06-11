@@ -1,6 +1,8 @@
+pub mod graphic;
 pub mod morph_shape;
 pub mod movie_clip;
-pub mod graphic;
+
+use std::rc::Rc;
 
 use bitflags::bitflags;
 use graphic::Graphic;
@@ -10,13 +12,19 @@ use ruffle_render::{
     backend::RenderBackend,
     bitmap::{BitmapHandle, BitmapInfo},
     blend::ExtendedBlendMode,
+    commands::{CommandHandler, RenderBlendMode},
     filters::Filter,
     matrix::Matrix,
+    pixel_bender::PixelBenderShaderHandle,
     transform::Transform,
 };
-use swf::{BlendMode, CharacterId, Color, ColorTransform, Depth, Point};
+use swf::{CharacterId, Color, ColorTransform, Depth, Point, Rectangle, Twips};
 
-use crate::{container::DisplayObjectContainer, library::{self, MovieLibrary}};
+use crate::{
+    container::{DisplayObjectContainer, TDisplayObjectContainer},
+    context::RenderContext,
+    library::{self, MovieLibrary},
+};
 bitflags! {
     /// Bit flags used by `DisplayObject`.
     #[derive(Clone, Copy)]
@@ -181,12 +189,19 @@ impl BitmapCache {
 
 #[derive(Clone)]
 pub struct DisplayObjectBase {
+    parent: Option<Rc<DisplayObject>>,
     place_frame: u16,
     depth: Depth,
+    clip_depth:Depth,
     name: Option<String>,
     transform: Transform,
     blend_mode: ExtendedBlendMode,
+    blend_shader: Option<PixelBenderShaderHandle>,
+    masker: Option<Rc<DisplayObject>>,
     flags: DisplayObjectFlags,
+    scroll_rect: Option<Rectangle<Twips>>,
+    next_scroll_rect: Rectangle<Twips>,
+    scaling_grid: Rectangle<Twips>,
     opaque_background: Option<Color>,
     filters: Vec<Filter>,
     cache: Option<BitmapCache>,
@@ -197,17 +212,33 @@ impl Default for DisplayObjectBase {
         Self {
             place_frame: Default::default(),
             depth: Default::default(),
+            clip_depth: Default::default(),
             name: None,
             transform: Default::default(),
             blend_mode: Default::default(),
+            blend_shader: None,
             opaque_background: Default::default(),
             flags: DisplayObjectFlags::VISIBLE,
             filters: Default::default(),
             cache: None,
+            scroll_rect: None,
+            next_scroll_rect: Default::default(),
+            scaling_grid: Default::default(),
+            masker: None,
+            parent: Default::default(),
         }
     }
 }
 impl DisplayObjectBase {
+    fn transform(&self) -> &Transform {
+        &self.transform
+    }
+    fn blend_mode(&self) -> ExtendedBlendMode {
+        self.blend_mode
+    }
+    fn blend_shader(&self) -> Option<PixelBenderShaderHandle> {
+        self.blend_shader.clone()
+    }
     pub fn set_name(&mut self, name: Option<String>) {
         self.name = name;
     }
@@ -255,6 +286,9 @@ impl DisplayObjectBase {
             false
         }
     }
+    fn clip_depth(&self) -> Depth {
+        self.clip_depth
+    }
     fn visible(&self) -> bool {
         self.flags.contains(DisplayObjectFlags::VISIBLE)
     }
@@ -285,6 +319,24 @@ impl DisplayObjectBase {
         self.flags.insert(DisplayObjectFlags::CACHE_INVALIDATED);
         true
     }
+    fn masker(&self) -> Option<Rc<DisplayObject>> {
+        self.masker.clone()
+    }
+    pub fn matrix(&self) -> &Matrix {
+        &self.transform.matrix
+    }
+    fn parent(&self) -> Option<Rc<DisplayObject>> {
+        self.parent.clone()
+    }
+    fn clear_invalidate_flag(&mut self) {
+        self.flags.remove(DisplayObjectFlags::CACHE_INVALIDATED);
+    }
+    fn has_scroll_rect(&self) -> bool {
+        self.flags.contains(DisplayObjectFlags::HAS_SCROLL_RECT)
+    }
+    fn set_clip_depth(&mut self, depth: Depth) {
+        self.clip_depth = depth;
+    }
 }
 
 pub trait TDisplayObject: Clone {
@@ -294,7 +346,7 @@ pub trait TDisplayObject: Clone {
         self.base_mut().set_name(name);
     }
     fn set_clip_depth(&mut self, depth: Depth) {
-        self.base_mut().set_depth(depth);
+        self.base_mut().set_clip_depth(depth);
     }
     fn set_matrix(&mut self, matrix: Matrix) {
         self.base_mut().set_matrix(matrix);
@@ -377,9 +429,8 @@ pub trait TDisplayObject: Clone {
         if self.base().name.is_none() {
             let name = format!("instance{}", library.instance_count);
             self.set_name(Some(name));
-            library.instance_count=library.instance_count.wrapping_add(1);
+            library.instance_count = library.instance_count.wrapping_add(1);
         }
-        
     }
     fn name(&self) -> Option<&str> {
         self.base().name()
@@ -387,11 +438,72 @@ pub trait TDisplayObject: Clone {
     fn post_instantiation(&mut self, library: &mut library::MovieLibrary) {
         self.set_default_instance_name(library);
     }
-    fn children(self) -> Option<crate::container::DisplayObjectContainer> {
+    fn as_children(self) -> Option<crate::container::DisplayObjectContainer> {
         None
     }
-    fn replace_with(&mut self, id: CharacterId, library: &mut MovieLibrary) {
-        
+    fn replace_with(&mut self, id: CharacterId, library: &mut MovieLibrary) {}
+
+    fn render_self(&self, render_context: &mut RenderContext<'_>);
+    fn scroll_rect(&self) -> Option<Rectangle<Twips>> {
+        self.base().scroll_rect.clone()
+    }
+    fn self_bounds(&self) -> Rectangle<Twips>;
+    fn bounds_with_transform(&self, matrix: &Matrix) -> Rectangle<Twips> {
+        // A scroll rect completely overrides an object's bounds,
+        // and can even grow the bounding box to be larger than the actual content
+        if let Some(scroll_rect) = self.scroll_rect() {
+            return *matrix
+                * Rectangle {
+                    x_min: Twips::ZERO,
+                    y_min: Twips::ZERO,
+                    x_max: scroll_rect.width(),
+                    y_max: scroll_rect.height(),
+                };
+        }
+
+        let mut bounds = *matrix * self.self_bounds();
+
+        if let Some(ctr) = self.clone().as_children() {
+            for child in ctr.iter_render_list() {
+                let matrix = *matrix * *child.base().matrix();
+                bounds = bounds.union(&child.bounds_with_transform(&matrix));
+            }
+        }
+
+        bounds
+    }
+    fn local_to_global_matrix_without_own_scroll_rect(&self) -> Matrix {
+        let mut node = self.base().parent();
+        let mut matrix = *self.base().matrix();
+        while let Some(display_object) = node {
+            // We want to transform to Stage-local coordinates,
+            // so do *not* apply the Stage's matrix
+            // if display_object.as_stage().is_some() {
+            //     break;
+            // }
+            if let Some(rect) = display_object.scroll_rect() {
+                matrix = Matrix::translate(-rect.x_min, -rect.y_min) * matrix;
+            }
+            matrix = *display_object.base().matrix() * matrix;
+            node = display_object.base().parent();
+        }
+        matrix
+    }
+    fn local_to_global_matrix(&self) -> Matrix {
+        let mut matrix = Matrix::IDENTITY;
+        if let Some(rect) = self.scroll_rect() {
+            matrix = Matrix::translate(-rect.x_min, -rect.y_min) * matrix;
+        }
+        self.local_to_global_matrix_without_own_scroll_rect() * matrix
+    }
+    fn world_bounds(&self) -> Rectangle<Twips> {
+        self.bounds_with_transform(&self.local_to_global_matrix())
+    }
+    fn allow_as_mask(&self) -> bool {
+        true
+    }
+    fn visible(&self) -> bool {
+        self.base().visible()
     }
 }
 
@@ -419,8 +531,8 @@ impl TDisplayObject for DisplayObject {
             DisplayObject::Graphic(g) => g.id,
         }
     }
-    
-    fn children(self) -> Option<DisplayObjectContainer> {
+
+    fn as_children(self) -> Option<DisplayObjectContainer> {
         match self {
             DisplayObject::MovieClip(mc) => Some(mc.into()),
             _ => None,
@@ -431,5 +543,141 @@ impl TDisplayObject for DisplayObject {
             DisplayObject::MovieClip(mc) => Some(mc.clone()),
             _ => None,
         }
+    }
+
+    fn render_self(&self, render_context: &mut RenderContext<'_>) {
+        match self {
+            DisplayObject::MovieClip(mc) => mc.render_self(render_context),
+            DisplayObject::Graphic(g) => g.render_self(render_context),
+        }
+    }
+
+    fn self_bounds(&self) -> Rectangle<Twips> {
+        match self {
+            DisplayObject::MovieClip(mc) => mc.self_bounds(),
+            DisplayObject::Graphic(g) => g.self_bounds(),
+        }
+    }
+}
+
+impl DisplayObject {
+    fn blend_shader(&self) -> Option<PixelBenderShaderHandle> {
+        self.base().blend_shader()
+    }
+    fn scroll_rect(&self) -> Option<Rectangle<Twips>> {
+        self.base().scroll_rect.clone()
+    }
+    fn masker(&self) -> Option<Rc<DisplayObject>> {
+        self.base().masker()
+    }
+    pub fn depth(&self) -> Depth {
+        self.base().depth
+    }
+    pub fn pre_render(&mut self, render_context: &mut RenderContext<'_>) {
+        let this = self.base_mut();
+        this.clear_invalidate_flag();
+        this.scroll_rect = this
+            .has_scroll_rect()
+            .then(|| this.next_scroll_rect.clone());
+    }
+    fn global_to_local_matrix(&self) -> Option<Matrix> {
+        self.local_to_global_matrix().inverse()
+    }
+    pub fn render(&self, render_context: &mut RenderContext<'_>) {
+        render_base(self.clone(), render_context);
+    }
+    pub fn clip_depth(&self) -> Depth {
+        self.base().clip_depth()
+    }
+}
+
+pub fn render_base(this: DisplayObject, render_context: &mut RenderContext<'_>) {
+    render_context.transform_stack.push(this.base().transform());
+    let blend_mode = this.base().blend_mode();
+    let original_commands = if blend_mode != ExtendedBlendMode::Normal {
+        Some(std::mem::take(&mut render_context.commands))
+    } else {
+        None
+    };
+    if let Some(original_commands) = original_commands {
+        let sub_commands = std::mem::replace(&mut render_context.commands, original_commands);
+        let render_blend_mode = if let ExtendedBlendMode::Shader = blend_mode {
+            RenderBlendMode::Shader(this.blend_shader().expect("Missing blend shader"))
+        } else {
+            RenderBlendMode::Builtin(blend_mode.try_into().unwrap())
+        };
+        render_context
+            .commands
+            .blend(sub_commands, render_blend_mode);
+    }
+
+    apply_standard_mask_and_scroll(this.clone(), render_context, |render_context| {
+        this.render_self(render_context)
+    });
+
+    render_context.transform_stack.pop();
+}
+
+fn apply_standard_mask_and_scroll<F>(
+    this: DisplayObject,
+    render_context: &mut RenderContext<'_>,
+    draw: F,
+) where
+    F: FnOnce(&mut RenderContext<'_>),
+{
+    let scroll_rect_matrix = if let Some(rect) = this.scroll_rect() {
+        let cur_transform = render_context.transform_stack.transform();
+        Some(
+            cur_transform.matrix
+                * Matrix::scale(
+                    rect.width().to_pixels() as f32,
+                    rect.height().to_pixels() as f32,
+                ),
+        )
+    } else {
+        None
+    };
+    if let Some(rect) = this.scroll_rect() {
+        render_context.transform_stack.push(&Transform {
+            matrix: Matrix::translate(-rect.x_min, -rect.y_min),
+            color_transform: Default::default(),
+        })
+    }
+
+    let mask = this.masker();
+    let mut mask_transform = Transform::default();
+    if let Some(m) = mask.clone() {
+        mask_transform.matrix = this.global_to_local_matrix().unwrap_or_default();
+        mask_transform.matrix *= m.local_to_global_matrix();
+        render_context.commands.push_mask();
+        render_context.transform_stack.push(&mask_transform);
+        m.render_self(render_context);
+        render_context.transform_stack.pop();
+        render_context.commands.activate_mask();
+    }
+
+    if let Some(rect_mat) = scroll_rect_matrix {
+        render_context.commands.push_mask();
+        render_context.commands.draw_rect(Color::WHITE, rect_mat);
+        render_context.commands.activate_mask();
+    }
+
+    draw(render_context);
+
+    if let Some(rect_mat) = scroll_rect_matrix {
+        render_context.commands.deactivate_mask();
+        render_context.commands.draw_rect(Color::WHITE, rect_mat);
+        render_context.commands.pop_mask();
+    }
+
+    if let Some(m) = mask {
+        render_context.commands.deactivate_mask();
+        render_context.transform_stack.push(&mask_transform);
+        m.render_self(render_context);
+        render_context.transform_stack.pop();
+        render_context.commands.pop_mask();
+    }
+    if scroll_rect_matrix.is_some() {
+        render_context.transform_stack.pop();
     }
 }

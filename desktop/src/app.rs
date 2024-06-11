@@ -1,6 +1,6 @@
 use std::{
     path::{Path, PathBuf},
-    rc::Rc,
+    rc::Rc, time::Instant,
 };
 
 use crate::{player::PlayerController, render_controller::RenderController};
@@ -43,31 +43,45 @@ impl App {
 
     pub fn run(&mut self) -> Result<(), Error> {
         // events loop
+        let mut time = Instant::now();
+        let mut next_frame_time = None;
+
         let event_loop = self.event_loop.take().expect("App 已经在运行了");
         event_loop.run(move |event, elwt| {
+            let mut check_redraw = false;
             match event {
                 Event::WindowEvent { event, .. } => match event {
                     WindowEvent::CloseRequested => {
-                        dbg!("CloseRequested");
                         elwt.exit();
                     }
                     WindowEvent::RedrawRequested => {
-                        dbg!("RedrawRequested");
                         if let Some(mut player) = self.player_controller.get() {
                             player.render();
                         }
                     }
                     WindowEvent::Resized(_) => {
-                        dbg!("Resized");
+                        if let Some(mut player) = self.player_controller.get() {
+                            player.render();
+                        }
                     }
                     _ => {}
                 },
                 Event::AboutToWait => {
+                    let new_time = Instant::now();
+                    let dt = new_time.duration_since(time).as_micros();
                     // 自己调用request_redraw()方法，不需要等待系统调用
                     // dbg!("AboutToWait");
                     // 应用程序应该总是重新绘制窗口
-                    if let Some(mut player) = self.player_controller.get() {
-                        // player.tick();
+                    let dt = new_time.duration_since(time).as_micros();
+                    if dt > 0 {
+                        time = new_time;
+                        if let Some(mut player) = self.player_controller.get() {
+                            player.tick(dt as f64 / 1000.0);
+                            next_frame_time = Some(new_time + player.time_til_next_frame());
+                        } else {
+                            next_frame_time = None;
+                        }
+                        check_redraw = true;
                     }
                 }
 

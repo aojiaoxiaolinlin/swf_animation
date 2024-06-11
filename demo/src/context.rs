@@ -1,5 +1,4 @@
 use ruffle_render::{backend::{BitmapCacheEntry, RenderBackend}, commands::CommandList, transform::TransformStack};
-use swf::Tag;
 
 use crate::library::{MovieLibrary, MovieLibrarySource};
 
@@ -16,7 +15,5 @@ pub struct RenderContext<'a> {
 
     pub use_bitmap_cache: bool,
 
-    pub library: &'a mut MovieLibrary,
-
-    pub tags: Vec<Tag<'a>>,
+    pub library: &'a mut MovieLibrary
 }

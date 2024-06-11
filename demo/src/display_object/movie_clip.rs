@@ -1,17 +1,34 @@
 use crate::{
     character::Character,
     container::{ChildContainer, DisplayObjectContainer, TDisplayObjectContainer},
+    context::{self, RenderContext},
     display_object::{DisplayObject, DisplayObjectBase, TDisplayObject},
+    drawing::Drawing,
     library::MovieLibrary,
 };
 use anyhow::anyhow;
+use ruffle_render::{
+    blend::ExtendedBlendMode,
+    commands::{CommandHandler, RenderBlendMode},
+};
 use swf::{CharacterId, Depth, HeaderExt, PlaceObject, PlaceObjectAction, SwfStr, Tag};
 
-use super::graphic::Graphic;
+use super::{graphic::Graphic, render_base};
 
 type FrameNumber = u16;
 type SwfVersion = u8;
 
+#[derive(PartialEq, Eq)]
+enum NextFrame {
+    /// Construct and run the next frame in the clip.
+    Next,
+
+    /// Jump to the first frame in the clip.
+    First,
+
+    /// Do not construct or run any frames.
+    Same,
+}
 #[derive(Clone)]
 pub struct MovieClip {
     base: DisplayObjectBase,
@@ -21,6 +38,7 @@ pub struct MovieClip {
     pub total_frames: FrameNumber,
     frame_labels: Vec<(FrameNumber, String)>,
     container: ChildContainer,
+    drawing: Drawing,
 }
 
 impl MovieClip {
@@ -33,6 +51,7 @@ impl MovieClip {
             frame_labels: Default::default(),
             swf_version: header.version(),
             container: ChildContainer::new(),
+            drawing: Drawing::new(),
         }
     }
     pub fn new_with_data(
@@ -48,6 +67,7 @@ impl MovieClip {
             frame_labels: Default::default(),
             swf_version,
             container: ChildContainer::new(),
+            drawing: Drawing::new(),
         }
     }
     pub fn load_swf(&mut self, tags: Vec<Tag>, library: &mut MovieLibrary) {
@@ -122,6 +142,8 @@ impl MovieClip {
                 let child = self.instantiate_child(id, place_object.depth, &place_object, library);
                 match child {
                     Ok(mut child) => {
+                        child.set_depth(place_object.depth);
+                        child.set_place_frame(self.current_frame);
                         child.apply_place_object(&place_object, self.swf_version);
                         if let Some(name) = &place_object.name {
                             child.set_name(Some(
@@ -155,6 +177,18 @@ impl MovieClip {
     pub fn frame_labels(&self) -> &[(FrameNumber, String)] {
         &self.frame_labels
     }
+    fn determine_next_frame(self) -> NextFrame {
+        if self.current_frame < self.total_frames {
+            NextFrame::Next
+        } else if self.total_frames > 1 {
+            NextFrame::First
+        } else {
+            NextFrame::Same
+        }
+    }
+    pub fn render(&mut self, render_context: &mut RenderContext<'_>) {
+        render_base(self.clone().into(), render_context);
+    }
 }
 
 impl TDisplayObject for MovieClip {
@@ -170,11 +204,20 @@ impl TDisplayObject for MovieClip {
         self.id
     }
 
-    fn children(self) -> Option<DisplayObjectContainer> {
+    fn as_children(self) -> Option<DisplayObjectContainer> {
         Some(self.into())
     }
     fn as_movie(&mut self) -> Option<MovieClip> {
         Some(self.clone())
+    }
+
+    fn render_self(&self, render_context: &mut RenderContext<'_>) {
+        self.drawing.render(render_context);
+        self.render_children(render_context);
+    }
+
+    fn self_bounds(&self) -> swf::Rectangle<swf::Twips> {
+        self.drawing.self_bounds().clone()
     }
 }
 impl From<MovieClip> for DisplayObject {

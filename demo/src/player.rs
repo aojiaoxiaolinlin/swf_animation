@@ -2,20 +2,16 @@ use std::{
     collections::VecDeque,
     fs::read,
     ops::DerefMut,
-    path::{self, Path, PathBuf},
-    sync::{Arc, Mutex},
+    path::Path,
     time::{Duration, Instant},
 };
 
-use ruffle_render::{backend::RenderBackend, commands, quality::StageQuality};
-use swf::{Color, Swf, SwfBuf, Tag};
+use ruffle_render::{backend::RenderBackend, quality::StageQuality};
+use swf::Color;
 
 use crate::{
     context::RenderContext,
-    display_object::{
-        movie_clip::{self, MovieClip},
-        TDisplayObject,
-    },
+    display_object::{movie_clip::MovieClip, TDisplayObject},
     library::MovieLibrary,
     stage::StageScaleMode,
 };
@@ -49,66 +45,9 @@ pub struct Player {
     max_execution_duration: Duration,
 
     current_frame: Option<u16>,
-
-    swf_buf: SwfBuf,
 }
 
 impl Player {
-    pub fn tick(&mut self, dt: f64) {
-        if self.is_playing() {
-            self.frame_accumulator += dt;
-            let frame_rate = self.frame_rate;
-            let frame_time = 1000.0 / frame_rate;
-
-            let max_frames_per_tick = self.max_frames_per_tick();
-            let mut frame = 0;
-
-            while frame < max_frames_per_tick && self.frame_accumulator >= frame_time {
-                let timer = Instant::now();
-                self.run_frame();
-                let elapsed = timer.elapsed().as_millis() as f64;
-
-                self.add_frame_timing(elapsed);
-
-                self.frame_accumulator -= frame_time;
-                frame += 1;
-                // The script probably tried implementing an FPS limiter with a busy loop.
-                // We fooled the busy loop by pretending that more time has passed that actually did.
-                // Then we need to actually pass this time, by decreasing frame_accumulator
-                // to delay the future frame.
-                if self.time_offset > 0 {
-                    self.frame_accumulator -= self.time_offset as f64;
-                }
-            }
-
-            // Now that we're done running code,
-            // we can stop pretending that more time passed than actually did.
-            // Note: update_timers(dt) doesn't need to see this either.
-            // Timers will run at correct times and see correct time.
-            // Also note that in Flash, a blocking busy loop would delay setTimeout
-            // and cancel some setInterval callbacks, but here busy loops don't block
-            // so timer callbacks won't get cancelled/delayed.
-            self.time_offset = 0;
-
-            // Sanity: If we had too many frames to tick, just reset the accumulator
-            // to prevent running at turbo speed.
-            if self.frame_accumulator >= frame_time {
-                self.frame_accumulator = 0.0;
-            }
-
-            // Adjust playback speed for next frame to stay in sync with timeline audio tracks ("stream" sounds).
-            let cur_frame_offset = self.frame_accumulator;
-        }
-    }
-    pub fn run_frame(&mut self) {
-        let frame_time = Duration::from_nanos((750_000_000.0 / self.frame_rate) as u64);
-        self.needs_render = true;
-        let parse_swf = swf::parse_swf(&self.swf_buf).unwrap();
-        let tags = parse_swf.tags;
-        let mut movie_library = MovieLibrary::new();
-
-        self.root_movie_clip.enter_frame();
-    }
     fn max_frames_per_tick(&self) -> u32 {
         const MAX_FRAMES_PER_TICK: u32 = 5;
 
@@ -166,9 +105,7 @@ impl Player {
             is_offscreen: false,
             use_bitmap_cache: false,
             library: &mut self.movie_library,
-            tags: Vec::new(),
         };
-        dbg!("render");
         self.root_movie_clip.render(&mut render_context);
 
         let commands = render_context.commands;
@@ -179,7 +116,7 @@ impl Player {
 }
 
 pub struct PlayerBuilder {
-    swf_resource: PathBuf,
+    swf_resource: String,
 
     renderer: Option<Box<dyn RenderBackend>>,
 
@@ -204,7 +141,7 @@ impl PlayerBuilder {
     #[inline]
     pub fn new() -> Self {
         Self {
-            swf_resource: PathBuf::new(),
+            swf_resource: String::new(),
             renderer: None,
             auto_play: true,
             forced_align: false,
@@ -222,13 +159,13 @@ impl PlayerBuilder {
         }
     }
     #[inline]
-    pub fn with_movie(mut self, swf_resource: PathBuf) -> Self {
+    pub fn with_movie(mut self, swf_resource: String) -> Self {
         self.swf_resource = swf_resource;
         self
     }
     #[inline]
-    pub fn with_renderer(mut self, renderer: impl 'static + RenderBackend) -> Self {
-        self.renderer = Some(Box::new(renderer));
+    pub fn with_renderer(mut self, renderer: Box<dyn RenderBackend>) -> Self {
+        self.renderer = Some(renderer);
         self
     }
     #[inline]
@@ -263,20 +200,7 @@ impl PlayerBuilder {
         self.frame_rate = Some(frame_rate);
         self
     }
-    pub fn load_swf_resource<P: AsRef<Path>>(path: P) -> (MovieClip, MovieLibrary, SwfBuf) {
-        let data = read(path).unwrap();
-        let swf_buf = swf::decompress_swf(&data[..]).unwrap();
-        let parse_swf = swf::parse_swf(&swf_buf).unwrap();
-        let mut root_movie_clip = MovieClip::new(parse_swf.header);
-        let mut movie_library = MovieLibrary::new();
-
-        let tags = parse_swf.tags;
-        root_movie_clip.set_name(Some("root".to_string()));
-        root_movie_clip.load_swf(tags, &mut movie_library);
-
-        (root_movie_clip, movie_library, swf_buf)
-    }
-    pub fn build<'a>(self) -> Arc<Mutex<Player>> {
+    pub fn build(self) -> Player {
         let frame_rate = self.frame_rate.unwrap_or(24.0);
         let renderer = self.renderer.unwrap();
         let start_time = Instant::now();
@@ -288,9 +212,8 @@ impl PlayerBuilder {
         let time_offset = 0;
         let needs_render = false;
         let is_playing = self.auto_play;
-        let (root_movie_clip, movie_library, swf_buf) = Self::load_swf_resource(&self.swf_resource);
-
-        Arc::new(Mutex::new(Player {
+        let (root_movie_clip, movie_library) = load_swf_resource(&self.swf_resource);
+        Player {
             player_version: self.player_version.unwrap_or(0),
             root_movie_clip,
             movie_library,
@@ -307,7 +230,19 @@ impl PlayerBuilder {
             start_time,
             max_execution_duration: self.max_execution_duration,
             current_frame,
-            swf_buf,
-        }))
+        }
     }
+}
+
+fn load_swf_resource<P: AsRef<Path>>(path: P) -> (MovieClip, MovieLibrary) {
+    let data = read(path).unwrap();
+    let swf_buf = swf::decompress_swf(&data[..]).unwrap();
+    let parse_swf = swf::parse_swf(&swf_buf).unwrap();
+    let mut root_movie_clip = MovieClip::new(parse_swf.header);
+    let mut movie_library = MovieLibrary::new();
+
+    root_movie_clip.set_name(Some("root".to_string()));
+    root_movie_clip.load_swf(parse_swf.tags, &mut movie_library);
+
+    return (root_movie_clip, movie_library);
 }

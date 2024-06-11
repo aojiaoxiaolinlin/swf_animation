@@ -1,664 +1,226 @@
-use core::{num, str};
-use std::{
-    borrow::Cow,
-    cell::RefCell,
-    collections::{hash_map, HashMap},
-    io::Read,
-    sync::Arc,
-};
-
 use crate::{
-    binary_data::{self, BinaryData},
-    character::{self, Character, CompressedBitmap},
-    container::TDisplayObjectContainer,
-    library,
-    tag_utils::{Error, SwfMovie},
+    character::Character,
+    container::{ChildContainer, DisplayObjectContainer, TDisplayObjectContainer},
+    context::{self, RenderContext},
+    display_object::{DisplayObject, DisplayObjectBase, TDisplayObject},
+    drawing::Drawing,
+    library::MovieLibrary,
 };
-use crate::{
-    context::{self, UpdateContext},
-    library::Library,
-    string::SwfStrExt,
-    tag_utils::SwfSlice,
+use anyhow::anyhow;
+use bitflags::bitflags;
+use ruffle_render::{
+    blend::ExtendedBlendMode,
+    commands::{CommandHandler, RenderBlendMode},
 };
-use ruffle_wstr::WString;
-use swf::{
-    extensions::ReadSwfExt, read::{ControlFlow, Reader}, CharacterId, DefineBitsLossless, Depth, FrameLabelData, PlaceObject, PlaceObjectAction, SwfStr, TagCode
-};
+use swf::{CharacterId, Depth, HeaderExt, PlaceObject, PlaceObjectAction, SwfStr, Tag};
 
-use super::{graphic::Graphic, morph_shape::MorphShape, DisplayObjectBase, TDisplayObject};
- type FrameNumber = u16;
+use super::{graphic::Graphic, render_base};
+
+type FrameNumber = u16;
+type SwfVersion = u8;
+bitflags! {
+    /// Boolean state flags used by `MovieClip`.
+    #[derive(Clone, Copy)]
+    struct MovieClipFlags: u8 {
+        /// Whether this `MovieClip` has run its initial frame.
+        const INITIALIZED             = 1 << 0;
+
+        /// Whether this `MovieClip` is playing or stopped.
+        const PLAYING                 = 1 << 1;
+
+        /// Whether this `MovieClip` has been played as a result of an AS3 command.
+        ///
+        /// The AS3 `isPlaying` property is broken and yields false until you first
+        /// call `play` to unbreak it. This flag tracks that bug.
+        const PROGRAMMATICALLY_PLAYED = 1 << 2;
+
+        /// Executing an AVM2 frame script.
+        ///
+        /// This causes any goto action to be queued and executed at the end of the script.
+        const EXECUTING_AVM2_FRAME_SCRIPT = 1 << 3;
+
+        /// Flag set when AVM2 loops to the next frame.
+        ///
+        /// Because AVM2 queues PlaceObject tags to run later, explicit gotos
+        /// that happen while those tags run should cancel the loop.
+        const LOOP_QUEUED = 1 << 4;
+
+        const RUNNING_CONSTRUCT_FRAME = 1 << 5;
+
+        /// Whether this `MovieClip` has been post-instantiated yet.
+        const POST_INSTANTIATED = 1 << 5;
+    }
+}
+#[derive(Clone)]
 pub struct MovieClip {
-    pub base: DisplayObjectBase,
-    static_data: MovieClipData,
+    base: DisplayObjectBase,
+    swf_version: SwfVersion,
+    pub id: CharacterId,
     current_frame: FrameNumber,
+    pub total_frames: FrameNumber,
+    frame_labels: Vec<(FrameNumber, String)>,
+    container: ChildContainer,
+    flags: MovieClipFlags,
+    drawing: Drawing,
 }
 
 impl MovieClip {
-    pub fn new(swf_movie: Arc<SwfMovie>) -> Self {
+    pub fn new(header: HeaderExt) -> Self {
         Self {
-            base: Default::default(),
-            static_data: MovieClipData {
-                id: 0,
-                swf: SwfSlice::from(swf_movie),
-                total_frames: 1,
-                frame_labels: Vec::new(),
-                frame_labels_map: HashMap::new(),
-                scene_labels: Vec::new(),
-                scene_labels_map: HashMap::new(),
-                frame_range: Default::default(),
-            },
-            current_frame: 0,
+            base: DisplayObjectBase::default(),
+            id: Default::default(),
+            current_frame: Default::default(),
+            total_frames: header.num_frames(),
+            frame_labels: Default::default(),
+            swf_version: header.version(),
+            container: ChildContainer::new(),
+            flags: MovieClipFlags::empty(),
+            drawing: Drawing::new(),
         }
     }
-    pub fn new_with_data(id: CharacterId, swf: SwfSlice, num_frames: FrameNumber) -> Self {
+    pub fn new_with_data(
+        id: CharacterId,
+        total_frames: FrameNumber,
+        swf_version: SwfVersion,
+    ) -> Self {
         Self {
-            base: Default::default(),
-            static_data: MovieClipData::with_data(id, swf, num_frames),
-            current_frame: 0,
+            base: DisplayObjectBase::default(),
+            id,
+            total_frames,
+            current_frame: Default::default(),
+            frame_labels: Default::default(),
+            swf_version,
+            container: ChildContainer::new(),
+            flags: MovieClipFlags::empty(),
+            drawing: Drawing::new(),
         }
     }
-    pub fn parse(&mut self, context: &mut UpdateContext) {
-        let swf_movie = self.static_data.swf.clone().movie.clone();
-        let mut reader = Reader::new(&swf_movie.data(), swf_movie.version());
-        self.read(context, &mut reader);
+    pub fn load_swf(&mut self, tags: Vec<Tag>, library: &mut MovieLibrary) {
+        self.parse_tag(tags, library);
     }
-
-    pub fn read(&mut self, context: &mut UpdateContext, reader: &mut Reader) {
-        let tag_callback = |tag_reader: &mut Reader, tag_code: TagCode| -> ControlFlow {
-            match tag_code {
-                TagCode::End => {
-                    println!("End");
-                    return ControlFlow::Break;
-                }
-                TagCode::ShowFrame => {
-                    self.show_frame(tag_reader).unwrap();
-                }
-                TagCode::CsmTextSettings => {
-                    self.csm_text_settings(context, tag_reader).unwrap();
-                }
-                TagCode::DefineBinaryData => {
-                    self.define_binary_data(context, tag_reader).unwrap();
-                }
-                TagCode::DefineBits => {
-                    self.define_bits(context, tag_reader).unwrap();
-                }
-                TagCode::DefineBitsJpeg2 => {
-                    self.define_bits_jpeg_2(context, tag_reader).unwrap();
-                }
-                TagCode::DefineBitsJpeg3 => {
-                    self.define_bits_jpeg_3_or_4(context, tag_reader, 3)
-                        .unwrap();
-                }
-                TagCode::DefineBitsJpeg4 => {
-                    self.define_bits_jpeg_3_or_4(context, tag_reader, 4)
-                        .unwrap();
-                }
-                TagCode::DefineButton => {
-                    println!("Define button");
-                }
-                TagCode::DefineButton2 => {
-                    println!("Define button2");
-                }
-                TagCode::DefineButtonCxform => {
-                    println!("Define button cxform");
-                }
-                TagCode::DefineButtonSound => {
-                    println!("Define button sound");
-                }
-                TagCode::DefineEditText => {
-                    println!("Define edit text");
-                }
-                TagCode::DefineFont => {
-                    println!("Define font");
-                }
-                TagCode::DefineFont2 => {
-                    println!("Define font2");
-                }
-                TagCode::DefineFont3 => {
-                    println!("Define font3");
-                }
-                TagCode::DefineFont4 => {
-                    println!("Define font4");
-                }
-                TagCode::DefineFontAlignZones => {
-                    println!("Define font align zones");
-                }
-                TagCode::DefineFontInfo => {
-                    println!("Define font info");
-                }
-                TagCode::DefineFontInfo2 => {
-                    println!("Define font info2");
-                }
-                TagCode::DefineFontName => {
-                    println!("Define font name");
-                }
-                TagCode::DefineMorphShape => {
-                    self.define_morph_shape(context, tag_reader, 1).unwrap();
-                }
-                TagCode::DefineMorphShape2 => {
-                    self.define_morph_shape(context, tag_reader, 2).unwrap();
-                }
-                TagCode::DefineShape => {
-                    self.define_shape(context, tag_reader, 1).unwrap();
-                }
-                TagCode::DefineShape2 => {
-                    self.define_shape(context, tag_reader, 2).unwrap();
-                }
-                TagCode::DefineShape3 => {
-                    self.define_shape(context, tag_reader, 3).unwrap();
-                }
-                TagCode::DefineShape4 => {
-                    self.define_shape(context, tag_reader, 4).unwrap();
-                }
-                TagCode::DefineSound => {
-                    println!("Define sound");
-                }
-                TagCode::DefineText => {
-                    println!("Define text");
-                }
-                TagCode::DefineText2 => {
-                    println!("Define text2");
-                }
-                TagCode::DefineVideoStream => {
-                    self.define_video_stream(tag_reader).unwrap();
-                }
-                TagCode::EnableTelemetry => {
-                    println!("Enable telemetry");
-                }
-                TagCode::ImportAssets => {
-                    println!("Import assets");
-                }
-                TagCode::ImportAssets2 => {
-                    println!("Import assets2");
-                }
-
-                TagCode::JpegTables => {
-                    self.jpeg_tables(context, tag_reader).unwrap();
-                }
-
-                TagCode::Metadata => {
-                    println!("Metadata");
-                }
-
-                TagCode::SetBackgroundColor => {
-                    println!("Set background color");
-                }
-
-                TagCode::SoundStreamBlock => {
-                    println!("Sound stream block");
-                }
-                TagCode::SoundStreamHead => {
-                    println!("Sound stream head");
-                }
-
-                TagCode::SoundStreamHead2 => {
-                    println!("Sound stream head2");
-                }
-                TagCode::StartSound => {
-                    println!("Start sound");
-                }
-
-                TagCode::StartSound2 => {
-                    println!("Start sound2");
-                }
-                TagCode::DebugId => {
-                    println!("Debug id");
-                }
-                TagCode::DefineBitsLossless => {
-                    self.define_bits_lossless(context, tag_reader, 1).unwrap();
-                }
-                TagCode::DefineBitsLossless2 => {
-                    self.define_bits_lossless(context, tag_reader, 2).unwrap();
-                }
-
-                TagCode::DefineScalingGrid => {
-                    self.define_scaling_grid(context, tag_reader).unwrap();
-                }
-
-                TagCode::DoAbc => {
-                    println!("Do abc");
-                }
-                TagCode::DoAbc2 => {
-                    println!("Do abc2");
-                }
-
-                TagCode::DoAction => {
-                    println!("Do action");
-                }
-
-                TagCode::DoInitAction => {
-                    println!("Do init action");
-                }
-
-                TagCode::EnableDebugger => {
-                    println!("Enable debugger");
-                }
-                TagCode::EnableDebugger2 => {
-                    println!("Enable debugger2");
-                }
-                TagCode::ScriptLimits => {
-                    println!("Script limits");
-                }
-                TagCode::SetTabIndex => {
-                    println!("Set tab index");
-                }
-                TagCode::SymbolClass => {
-                    println!("Symbol class");
-                }
-
-                TagCode::ExportAssets => {
-                    self.export_assets(context, tag_reader).unwrap();
-                }
-
-                TagCode::FileAttributes => {
-                    println!("File attributes");
-                }
-
-                TagCode::Protect => {
-                    println!("Protect");
-                }
-
-                TagCode::DefineSceneAndFrameLabelData => {
-                    self.scene_and_frame_labels(tag_reader).unwrap();
-                }
-
-                TagCode::FrameLabel => {
-                    self.frame_label(context, tag_reader).unwrap();
-                }
-
-                TagCode::DefineSprite => {
-                    println!("Define sprite");
-                    self.read_define_sprite(context, tag_reader).unwrap();
-                }
-                TagCode::PlaceObject => {
-                    println!("Place object");
-                }
-                TagCode::PlaceObject2 => {
-                    self.place_object(context, tag_reader, 2).unwrap();
-                }
-                TagCode::PlaceObject3 => {
-                    println!("Place object3");
-                }
-                TagCode::PlaceObject4 => {
-                    println!("Place object4");
-                }
-
-                TagCode::RemoveObject => {
-                    println!("Remove object");
-                }
-
-                TagCode::RemoveObject2 => {
-                    println!("Remove object2");
-                }
-
-                TagCode::VideoFrame => {
-                    self.preload_video_frame(tag_reader).unwrap();
-                }
-                TagCode::ProductInfo => {
-                    println!("Product info");
-                }
-                TagCode::NameCharacter => {
-                    println!("Name character");
-                }
-            };
-            ControlFlow::Continue
-        };
-        reader.read_tag_code(tag_callback);
-    }
-    #[inline]
-    fn read_define_sprite(
-        &mut self,
-        context: &mut UpdateContext,
-        tag_reader: &mut Reader,
-    ) -> Result<(), Error> {
-        let start = tag_reader.as_slice();
-        let id = tag_reader.read_u16()?;
-        let num_frames = tag_reader.read_u16()?;
-        let num_read = tag_reader.pos(start);
-
-        let movie_clip = MovieClip::new_with_data(id, self.static_data.swf.clone(), num_frames);
-        context
-            .library
-            .library_for_movie_mut(self.movie())
-            .register_character(id, Character::MovieClip(movie_clip));
-
-        self.read(context, tag_reader);
-        Ok(())
-    }
-    #[inline]
-    fn csm_text_settings(
-        &mut self,
-        context: &mut UpdateContext,
-        reader: &mut Reader,
-    ) -> Result<(), Error> {
-        let _settings = reader.read_csm_text_settings()?;
-        let _library = context.library.library_for_movie_mut(self.movie());
-
-        Ok(())
-    }
-    #[inline]
-    fn define_shape(
-        &mut self,
-        context: &mut UpdateContext,
-        reader: &mut Reader,
-        version: u8,
-    ) -> Result<(), Error> {
-        let swf_shape = reader.read_define_shape(version)?;
-        let id = swf_shape.id;
-        let graphic = Graphic::from_swf_tag(swf_shape, self.movie());
-        context
-            .library
-            .library_for_movie_mut(self.movie())
-            .register_character(id, Character::Graphic(graphic));
-        Ok(())
-    }
-    #[inline]
-    fn preload_video_frame(&mut self, reader: &mut Reader) -> Result<(), Error> {
-        let video_frame = reader.read_video_frame()?;
-        Ok(())
-    }
-    #[inline]
-    fn define_bits(
-        &mut self,
-        context: &mut UpdateContext,
-        reader: &mut Reader,
-    ) -> Result<(), Error> {
-        let id = reader.read_u16()?;
-        let jpeg_data = reader.read_slice_to_end();
-        let jpeg_tables = context
-            .library
-            .library_for_movie_mut(self.movie())
-            .jpeg_tables();
-        let jpeg_data =
-            ruffle_render::utils::glue_tables_to_jpeg(jpeg_data, jpeg_tables).into_owned();
-        let (width, height) = ruffle_render::utils::decode_define_bits_jpeg_dimensions(&jpeg_data)?;
-        dbg!(width, height);
-        Ok(())
-    }
-    #[inline]
-    fn define_bits_jpeg_2(
-        &mut self,
-        context: &mut UpdateContext,
-        reader: &mut Reader,
-    ) -> Result<(), Error> {
-        let id = reader.read_u16()?;
-        let jpeg_data = reader.read_slice_to_end();
-        let (width, height) = ruffle_render::utils::decode_define_bits_jpeg_dimensions(&jpeg_data)?;
-        context
-            .library
-            .library_for_movie_mut(self.movie())
-            .register_character(
-                id,
-                Character::Bitmap {
-                    compressed: character::CompressedBitmap::Jpeg {
-                        data: jpeg_data.to_vec(),
-                        alpha: None,
-                        width,
-                        height,
-                    },
-                    handle: RefCell::new(None),
-                },
-            );
-        Ok(())
-    }
-    #[inline]
-    fn define_bits_jpeg_3_or_4(
-        &mut self,
-        context: &mut UpdateContext,
-        reader: &mut Reader,
-        version: u8,
-    ) -> Result<(), Error> {
-        let id = reader.read_u16()?;
-        let jpeg_len = reader.read_u32()? as usize;
-        if version == 4 {
-            let _deblocking = reader.read_u16()?;
-        }
-        let jpeg_data = reader.read_slice(jpeg_len)?;
-        let alpha_data = reader.read_slice_to_end();
-        let (width, height) = ruffle_render::utils::decode_define_bits_jpeg_dimensions(&jpeg_data)?;
-        context
-            .library
-            .library_for_movie_mut(self.movie())
-            .register_character(
-                id,
-                Character::Bitmap {
-                    compressed: CompressedBitmap::Jpeg {
-                        data: jpeg_data.to_owned(),
-                        alpha: Some(alpha_data.to_owned()),
-                        width,
-                        height,
-                    },
-                    handle: RefCell::new(None),
-                },
-            );
-        Ok(())
-    }
-    #[inline]
-    fn define_bits_lossless(
-        &mut self,
-        context: &mut UpdateContext,
-        reader: &mut Reader,
-        version: u8,
-    ) -> Result<(), Error> {
-        let define_bits_lossless = reader.read_define_bits_lossless(version)?;
-        context
-            .library
-            .library_for_movie_mut(self.movie())
-            .register_character(
-                define_bits_lossless.id,
-                Character::Bitmap {
-                    compressed: CompressedBitmap::Lossless(DefineBitsLossless {
-                        id: define_bits_lossless.id,
-                        format: define_bits_lossless.format,
-                        width: define_bits_lossless.width,
-                        height: define_bits_lossless.height,
-                        version: define_bits_lossless.version,
-                        data: Cow::Owned(define_bits_lossless.data.into_owned()),
-                    }),
-                    handle: RefCell::new(None),
-                },
-            );
-        Ok(())
-    }
-    #[inline]
-    fn define_morph_shape(
-        &mut self,
-        context: &mut UpdateContext,
-        reader: &mut Reader,
-        version: u8,
-    ) -> Result<(), Error> {
-        let morph_shape = reader.read_define_morph_shape(version)?;
-        let id = morph_shape.id;
-        let morph_shape = MorphShape::from_swf_tag(morph_shape, self.movie());
-        context
-            .library
-            .library_for_movie_mut(self.movie())
-            .register_character(id, Character::MorphShape(morph_shape));
-        Ok(())
-    }
-    #[inline]
-    fn define_scaling_grid(
-        &mut self,
-        context: &mut UpdateContext,
-        reader: &mut Reader,
-    ) -> Result<(), Error> {
-        let id = reader.read_u16()?;
-        let rect = reader.read_rectangle()?;
-        let library = context.library.library_for_movie_mut(self.movie());
-        if let Some(character) = library.character_by_id(id) {
-            if let Character::MovieClip(clip) = character {
-                clip.set_scaling_grid(rect);
-            } else {
-                println!("Movie clip {}: Scaling grid on non-movie clip", id);
+    pub fn run_frame_internal(&mut self, tags: Vec<Tag>, library: &mut MovieLibrary) {
+        for tag in tags {
+            match tag {
+                Tag::PlaceObject(place_object) => {
+                    self.place_object(place_object, library);
+                }
+                _ => {}
             }
         }
-        Ok(())
     }
-    #[inline]
-    fn define_video_stream(&mut self, reader: &mut Reader) -> Result<(), Error> {
-        let video_stream = reader.read_define_video_stream()?;
-        let id = video_stream.id;
-        // let video = Video::from_swf_tag(self.movie(),video_stream);
-        Ok(())
-    }
-    #[inline]
-    fn scene_and_frame_labels(&mut self, reader: &mut Reader) -> Result<(), Error> {
-        let static_data = &mut self.static_data;
-        let mut sfl_data = reader.read_define_scene_and_frame_label_data()?;
-        sfl_data
-            .scenes
-            .sort_unstable_by(|s1, s2| s1.frame_num.cmp(&s2.frame_num));
-        for (i, FrameLabelData { frame_num, label }) in sfl_data.scenes.iter().enumerate() {
-            let start = *frame_num as u16 + 1;
-            let end = sfl_data
-                .scenes
-                .get(i + 1)
-                .map(|s| s.frame_num as u16)
-                .unwrap_or(static_data.total_frames + 1);
-            let scene = Scene {
-                name: label.decode(reader.encoding()).into_owned(),
-                start,
-                length: end - start,
-            };
-            static_data.scene_labels.push(scene.clone());
-            if let hash_map::Entry::Vacant(entry) =
-                static_data.scene_labels_map.entry(scene.name.clone())
-            {
-                entry.insert(scene);
-            } else {
-                // println!("Movie clip {}: Duplicated scene label", self.id());
+    pub fn parse_tag(&mut self, tags: Vec<Tag>, library: &mut MovieLibrary) {
+        for tag in tags {
+            match tag {
+                Tag::PlaceObject(place_object) => {
+                    self.place_object(place_object, library);
+                }
+                Tag::SetBackgroundColor(set_background_color) => {
+                    println!("{:?}", set_background_color);
+                }
+                Tag::DefineSprite(define_sprite) => {
+                    let mut movie_clip = MovieClip::new_with_data(
+                        define_sprite.id,
+                        define_sprite.num_frames,
+                        self.swf_version,
+                    );
+                    // let movie_clip = Rc::new(RefCell::new(movie_clip));
+                    // 递归解析下一个 MovieClip
+                    movie_clip.parse_tag(define_sprite.tags, library);
+                    // 存入库
+                    library.register_character(define_sprite.id, Character::MovieClip(movie_clip));
+                }
+                Tag::FrameLabel(frame_label) => {
+                    self.frame_labels.push((
+                        self.current_frame,
+                        frame_label
+                            .label
+                            .to_str_lossy(SwfStr::encoding_for_version(self.swf_version))
+                            .into_owned(),
+                    ));
+                }
+                Tag::ShowFrame => {
+                    self.current_frame += 1;
+                }
+                Tag::DefineShape(define_shape) => {
+                    library.register_character(
+                        define_shape.id,
+                        Character::Graphic(Graphic::from_swf_tag(define_shape)),
+                    );
+                }
+                Tag::RemoveObject(_remove_object) => {
+                    // dbg!(remove_object.depth);
+                }
+                Tag::DefineSceneAndFrameLabelData(_define_scene_and_frame_label_data) => {}
+                _ => {}
             }
         }
-
-        Ok(())
     }
-    #[inline]
-    fn export_assets(
-        &mut self,
-        context: &mut UpdateContext,
-        reader: &mut Reader,
-    ) -> Result<(), Error> {
-        let exports = reader.read_export_assets()?;
-        for export in exports {
-            let name = export.name.decode(reader.encoding());
-        }
-        Ok(())
-    }
-    #[inline]
-    fn jpeg_tables(
-        &mut self,
-        context: &mut UpdateContext,
-        reader: &mut Reader,
-    ) -> Result<(), Error> {
-        let jpeg_data = reader.read_slice_to_end();
-        context
-            .library
-            .library_for_movie_mut(self.movie())
-            .set_jpeg_tables(jpeg_data);
-        Ok(())
-    }
-    #[inline]
-    fn define_binary_data(
-        &mut self,
-        context: &mut UpdateContext,
-        reader: &mut Reader,
-    ) -> Result<(), Error> {
-        let tag_data = reader.read_define_binary_data()?;
-        let binary_data = BinaryData::from_swf_tag(self.movie(), &tag_data);
-        context
-            .library
-            .library_for_movie_mut(self.movie())
-            .register_character(tag_data.id, Character::BinaryData(binary_data));
-        Ok(())
-    }
-    #[inline]
-    fn show_frame(&mut self, _reader: &mut Reader) -> Result<(), Error> {
-        let cur_frame = self.static_data.cur_frame();
-        self.static_data.frame_range.cur_frame = cur_frame + 1;
-        Ok(())
-    }
-    #[inline]
-    fn frame_label(
-        &mut self,
-        _context: &mut UpdateContext,
-        reader: &mut Reader,
-    ) -> Result<(), Error> {
-        let frame_label = reader.read_frame_label()?;
-        let mut label = frame_label.label.decode(reader.encoding()).into_owned();
-        if !self.movie().is_action_script_3() {
-            label.make_ascii_lowercase();
-        }
-        let static_data = &mut self.static_data;
-        if !static_data.scene_labels.is_empty() {
-            return Ok(());
-        }
-
-        let current_frame = static_data.cur_frame();
-        static_data
-            .frame_labels
-            .push((static_data.cur_frame(), label.clone()));
-        if let hash_map::Entry::Vacant(entry) = static_data.frame_labels_map.entry(label) {
-            entry.insert(current_frame);
-        } else {
-            // println!("Movie clip {}: Duplicated frame label", self.id());
-        }
-        Ok(())
-    }
-
-    fn place_object(
-        &mut self,
-        context: &mut UpdateContext,
-        reader: &mut Reader,
-        version: u8,
-    ) -> Result<(), Error> {
-        let place_object = if version == 1 {
-            reader.read_place_object()
-        } else {
-            reader.read_place_object_2_or_3(version)
-        }?;
-        match place_object.action {
-            PlaceObjectAction::Place(id) => {
-                self.instantiate_child(context, id, place_object.depth.into(), &place_object);
-            }
-            PlaceObjectAction::Replace(id) => {
-                // if let Some(child) = self.child_by_depth(place_object.depth.into()) {
-                //     child.replace_with(context, id);
-                //     child.apply_place_object(context, &place_object);
-                //     child.set_place_frame(context, self.current_frame());
-                // }
-            }
-            PlaceObjectAction::Modify => {
-                // if let Some(child) = self.child_by_depth(place_object.depth.into()) {
-                //     child.apply_place_object(context, &place_object);
-                // }
-            }
-        }
-        Ok(())
-    }
-
     fn instantiate_child(
         &mut self,
-        context: &mut UpdateContext,
         id: CharacterId,
         depth: Depth,
-        place_object: &PlaceObject,
-    ) {
-        
-    }
-
-    pub fn movie(&self) -> Arc<SwfMovie> {
-        self.static_data.swf.movie.clone()
-    }
-
-    pub fn player_root_movie(movie: Arc<SwfMovie>) -> Self {
-        let num_frames = movie.num_frames();
-        Self {
-            base: Default::default(),
-            static_data: MovieClipData::with_data(0, movie.clone().into(), num_frames),
-            current_frame: 0,
+        place_object: &swf::PlaceObject,
+        library: &mut MovieLibrary,
+    ) -> anyhow::Result<DisplayObject> {
+        if let Some(character) = library.character(id) {
+            match character.clone() {
+                Character::MovieClip(movie_clip) => Ok(movie_clip.into()),
+                Character::Graphic(graphic) => Ok(graphic.into()),
+            }
+        } else {
+            Err(anyhow!("Character id doesn't exist"))
         }
     }
+    fn place_object(&mut self, place_object: Box<PlaceObject>, library: &mut MovieLibrary) {
+        match place_object.action {
+            PlaceObjectAction::Place(id) => {
+                let child = self.instantiate_child(id, place_object.depth, &place_object, library);
+                match child {
+                    Ok(mut child) => {
+                        child.set_depth(place_object.depth);
+                        child.set_place_frame(self.current_frame);
+                        child.apply_place_object(&place_object, self.swf_version);
+                        if let Some(name) = &place_object.name {
+                            child.set_name(Some(
+                                name.to_str_lossy(SwfStr::encoding_for_version(self.swf_version))
+                                    .into_owned(),
+                            ));
+                        }
+                        if let Some(clip_depth) = place_object.clip_depth {
+                            child.set_clip_depth(clip_depth);
+                        }
+                        child.post_instantiation(library);
+                        self.replace_at_depth(place_object.depth, child);
+                    }
+                    Err(_e) => {}
+                }
+            }
+            PlaceObjectAction::Replace(id) => {
+                if let Some(mut child) = self.child_by_depth(place_object.depth.into()) {
+                    child.replace_with(id, library);
+                    child.apply_place_object(&place_object, self.swf_version);
+                    child.set_place_frame(self.current_frame);
+                }
+            }
+            PlaceObjectAction::Modify => {
+                if let Some(mut child) = self.child_by_depth(place_object.depth.into()) {
+                    child.apply_place_object(&place_object, self.swf_version);
+                }
+            }
+        }
+    }
+    pub fn frame_labels(&self) -> &[(FrameNumber, String)] {
+        &self.frame_labels
+    }
+
+    pub fn render(&mut self, render_context: &mut RenderContext<'_>) {
+        render_base(self.clone().into(), render_context);
+    }
+    fn playing(&self) -> bool {
+        self.flags.contains(MovieClipFlags::PLAYING)
+    }
 }
+
 impl TDisplayObject for MovieClip {
     fn base_mut(&mut self) -> &mut DisplayObjectBase {
         &mut self.base
@@ -668,68 +230,62 @@ impl TDisplayObject for MovieClip {
         &self.base
     }
 
-    fn movie(&self) -> Arc<SwfMovie> {
-        self.movie()
+    fn character_id(&self) -> CharacterId {
+        self.id
+    }
+
+    fn as_children(self) -> Option<DisplayObjectContainer> {
+        Some(self.into())
+    }
+    fn as_movie(&mut self) -> Option<MovieClip> {
+        Some(self.clone())
+    }
+
+    fn render_self(&self, render_context: &mut RenderContext<'_>) {
+        self.drawing.render(render_context);
+        self.render_children(render_context);
+    }
+
+    fn self_bounds(&self) -> swf::Rectangle<swf::Twips> {
+        self.drawing.self_bounds().clone()
+    }
+    fn enter_frame(&mut self) {
+        let skip_frame = self.base().should_skip_next_enter_frame();
+        for mut child in self.clone().iter_render_list().rev() {
+            if skip_frame {
+                child.base_mut().set_skip_next_enter_frame(true);
+            }
+            child.enter_frame();
+        }
+        if skip_frame {
+            self.base_mut().set_skip_next_enter_frame(false);
+            return;
+        }
+        let is_playing = self.playing();
+        
+        if is_playing {
+// self.run_frame_internal(, library)
+        }
+        
+    }
+}
+impl From<MovieClip> for DisplayObject {
+    fn from(movie_clip: MovieClip) -> Self {
+        DisplayObject::MovieClip(movie_clip)
     }
 }
 impl TDisplayObjectContainer for MovieClip {
-    fn container(&mut self) -> crate::container::ChildrenContainer {
-        todo!()
+    fn raw_container(&self) -> &ChildContainer {
+        &self.container
     }
-}
-pub struct MovieClipData {
-    // swf_movie: Arc<SwfMovie>,
-    id: CharacterId,
-    swf: SwfSlice,
-    frame_labels: Vec<(FrameNumber, WString)>,
-    frame_labels_map: HashMap<WString, FrameNumber>,
-    total_frames: FrameNumber,
-    scene_labels: Vec<Scene>,
-    scene_labels_map: HashMap<WString, Scene>,
-    frame_range: FrameRange,
-}
-impl MovieClipData {
-    fn cur_frame(&self) -> FrameNumber {
-        self.frame_range.cur_frame
+
+    fn raw_container_mut(&mut self) -> &mut ChildContainer {
+        &mut self.container
     }
-    fn with_data(id: CharacterId, swf: SwfSlice, total_frames: FrameNumber) -> Self {
-        Self {
-            id,
-            swf,
-            frame_labels: Vec::new(),
-            frame_labels_map: HashMap::new(),
-            total_frames,
-            scene_labels: Vec::new(),
-            scene_labels_map: HashMap::new(),
-            frame_range: Default::default(),
-        }
-    }
-}
-#[derive(Clone)]
-pub struct Scene {
-    pub name: WString,
-    pub start: FrameNumber,
-    pub length: FrameNumber,
 }
 
-impl Default for Scene {
-    fn default() -> Self {
-        Scene {
-            name: WString::default(),
-            start: 1,
-            length: u16::MAX,
-        }
-    }
-}
-struct FrameRange {
-    cur_frame: FrameNumber,
-    last_frame_start_pos: FrameNumber,
-}
-impl Default for FrameRange {
-    fn default() -> Self {
-        FrameRange {
-            cur_frame: 1,
-            last_frame_start_pos: 0,
-        }
+impl From<MovieClip> for DisplayObjectContainer {
+    fn from(movie_clip: MovieClip) -> Self {
+        DisplayObjectContainer::MovieClip(movie_clip)
     }
 }

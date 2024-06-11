@@ -1,36 +1,19 @@
-use std::sync::Arc;
-
-use swf::DefineMorphShape;
-
-use crate::tag_utils::SwfMovie;
+use crate::display_object::DisplayObjectBase;
 
 pub struct MorphShape {
-    static_data: MorphShapeData,
+    base: DisplayObjectBase,
     ratio: u16,
 }
 
 impl MorphShape {
-    pub fn from_swf_tag(swf_shape: DefineMorphShape, movie: Arc<SwfMovie>) -> Self {
-        let static_data = MorphShapeData::from_swf_tag(swf_shape, movie);
-        MorphShape {
-            static_data,
-            ratio: 0,
+    pub fn new(ratio: u16) -> Self {
+        Self {
+            base: DisplayObjectBase::default(),
+            ratio,
         }
     }
-}
-pub struct MorphShapeData {
-    id: u16,
-    start: swf::MorphShape,
-    end: swf::MorphShape,
-    movie: Arc<SwfMovie>,
-}
-impl MorphShapeData {
-    pub fn from_swf_tag(swf_shape: DefineMorphShape, movie: Arc<SwfMovie>) -> Self {
-        Self {
-            id: swf_shape.id,
-            start: swf_shape.start.clone(),
-            end: swf_shape.end.clone(),
-            movie,
-        }
+
+    pub fn set_ratio(&mut self, ratio: u16) {
+        self.ratio = ratio;
     }
 }

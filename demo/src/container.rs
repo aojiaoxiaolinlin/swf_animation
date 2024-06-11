@@ -1,8 +1,9 @@
 use std::{collections::BTreeMap, ops::Bound, rc::Rc};
 
+use ruffle_render::commands::CommandHandler;
 use swf::Depth;
 
-use crate::display_object::{movie_clip::MovieClip, DisplayObject, TDisplayObject};
+use crate::{context::RenderContext, display_object::{movie_clip::MovieClip, DisplayObject, TDisplayObject}};
 
 #[derive(Clone)]
 pub struct ChildContainer {
@@ -63,11 +64,12 @@ impl ChildContainer {
     }
 }
 
+#[derive(Clone)]
 pub enum DisplayObjectContainer {
     MovieClip(MovieClip),
 }
 
-pub trait TDisplayObjectContainer: Into<DisplayObjectContainer> {
+pub trait TDisplayObjectContainer: Into<DisplayObjectContainer> + Clone {
     fn raw_container(&self) -> &ChildContainer;
     fn raw_container_mut(&mut self) -> &mut ChildContainer;
     fn replace_at_depth(&mut self, depth: Depth, child: DisplayObject) {
@@ -81,6 +83,47 @@ pub trait TDisplayObjectContainer: Into<DisplayObjectContainer> {
     }
     fn child_by_depth(&self, depth: Depth) -> Option<DisplayObject> {
         self.raw_container().depth_list.get(&depth).cloned()
+    }
+    fn render_children(&self, render_context:&mut RenderContext) {
+        let mut clip_depth = 0;
+        let mut clip_depth_stack: Vec<(Depth, DisplayObject)> = vec![];
+        for mut child in self.clone().iter_render_list() {
+            let depth = child.depth();
+
+            child.pre_render(render_context);
+            if child.clip_depth() > 0 && child.allow_as_mask() {
+                // Push and render the mask.
+                clip_depth = child.clip_depth();
+                child.render(render_context);
+                clip_depth_stack.push((clip_depth, child));
+                render_context.commands.push_mask();
+                render_context.commands.activate_mask();
+            } else if child.visible() || render_context.commands.drawing_mask() {
+                // Either a normal visible child, or a descendant of a mask object
+                // that we're drawing. The 'visible' flag is ignored for all descendants
+                // of a mask.
+                child.render(render_context);
+            }
+            // Check if we need to pop off a mask.
+            // This must be a while loop because multiple masks can be popped
+            // at the same depth.
+            while clip_depth > 0 && depth > clip_depth {
+                // Clear the mask stencil and pop the mask.
+                let (prev_clip_depth, clip_child) = clip_depth_stack.pop().unwrap();
+                clip_depth = prev_clip_depth;
+                render_context.commands.deactivate_mask();
+                clip_child.render(render_context);
+                render_context.commands.pop_mask();
+            }
+            
+        }
+
+        // Pop any remaining masks.
+        for (_, clip_child) in clip_depth_stack.into_iter().rev() {
+            render_context.commands.deactivate_mask();
+            clip_child.render(render_context);
+            render_context.commands.pop_mask();
+        }
     }
 }
 

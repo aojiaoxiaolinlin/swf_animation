@@ -7,10 +7,7 @@ edition = "2021"
 
 [dependencies]
 swf = { path = "../../ruffle/swf" }
-ruffle_render = { path = "../../ruffle/render" }
 ruffle_wstr = { path = "../../ruffle/wstr" }
-ruffle_macros = { path = "../../ruffle/core/macros" }
-thiserror = "1.0"
-weak-table = "0.3.2"
+ruffle_render = { path = "../../ruffle/render" }
+anyhow = { workspace = true }
 bitflags = "2.5.0"
-serde = { version = "1.0.198", features = ["derive"] }

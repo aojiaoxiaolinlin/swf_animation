@@ -1,8 +1,14 @@
 mod character;
 mod container;
+mod context;
 mod display_object;
+mod drawing;
 mod library;
+pub mod player;
+mod stage;
 
+use player::Player;
+use player::PlayerBuilder;
 #[cfg(test)]
 mod tests {
     use std::fs::read;
