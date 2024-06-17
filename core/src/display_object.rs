@@ -345,6 +345,9 @@ impl DisplayObjectBase {
         self.flags
             .set(DisplayObjectFlags::SKIP_NEXT_ENTER_FRAME, skip);
     }
+    fn is_root(&self) -> bool {
+        self.flags.contains(DisplayObjectFlags::IS_ROOT)
+    }
 }
 
 pub trait TDisplayObject: Clone {
@@ -515,6 +518,10 @@ pub trait TDisplayObject: Clone {
     }
 
     fn enter_frame(&mut self) {}
+
+    fn is_root(&self) -> bool {
+        self.base().is_root()
+    }
 }
 
 #[derive(Clone)]

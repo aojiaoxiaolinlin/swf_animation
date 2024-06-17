@@ -7,8 +7,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-use ruffle_render::{backend::RenderBackend, commands, quality::StageQuality};
-use swf::{Color, Swf, SwfBuf, Tag};
+use ruffle_render::{backend::RenderBackend, quality::StageQuality};
+use swf::{Color, SwfBuf};
 
 use crate::{
     context::RenderContext,
@@ -18,6 +18,7 @@ use crate::{
     },
     library::MovieLibrary,
     stage::StageScaleMode,
+    tag_utils::SwfMovie,
 };
 
 pub struct Player {
@@ -49,8 +50,6 @@ pub struct Player {
     max_execution_duration: Duration,
 
     current_frame: Option<u16>,
-
-    swf_buf: SwfBuf,
 }
 
 impl Player {
@@ -103,8 +102,6 @@ impl Player {
     pub fn run_frame(&mut self) {
         let frame_time = Duration::from_nanos((750_000_000.0 / self.frame_rate) as u64);
         self.needs_render = true;
-        let parse_swf = swf::parse_swf(&self.swf_buf).unwrap();
-        let tags = parse_swf.tags;
         let mut movie_library = MovieLibrary::new();
 
         self.root_movie_clip.enter_frame();
@@ -263,18 +260,15 @@ impl PlayerBuilder {
         self.frame_rate = Some(frame_rate);
         self
     }
-    pub fn load_swf_resource<P: AsRef<Path>>(path: P) -> (MovieClip, MovieLibrary, SwfBuf) {
-        let data = read(path).unwrap();
-        let swf_buf = swf::decompress_swf(&data[..]).unwrap();
-        let parse_swf = swf::parse_swf(&swf_buf).unwrap();
-        let mut root_movie_clip = MovieClip::new(parse_swf.header);
+    pub fn load_swf_resource<P: AsRef<Path>>(path: P) -> (MovieClip, MovieLibrary) {
+        let mut root_movie_clip =
+            MovieClip::new(Arc::new(SwfMovie::from_path(path, None).unwrap()));
         let mut movie_library = MovieLibrary::new();
 
-        let tags = parse_swf.tags;
         root_movie_clip.set_name(Some("root".to_string()));
-        root_movie_clip.load_swf(tags, &mut movie_library);
+        root_movie_clip.load_swf(&mut movie_library);
 
-        (root_movie_clip, movie_library, swf_buf)
+        (root_movie_clip, movie_library)
     }
     pub fn build<'a>(self) -> Arc<Mutex<Player>> {
         let frame_rate = self.frame_rate.unwrap_or(24.0);
@@ -288,7 +282,7 @@ impl PlayerBuilder {
         let time_offset = 0;
         let needs_render = false;
         let is_playing = self.auto_play;
-        let (root_movie_clip, movie_library, swf_buf) = Self::load_swf_resource(&self.swf_resource);
+        let (root_movie_clip, movie_library) = Self::load_swf_resource(&self.swf_resource);
 
         Arc::new(Mutex::new(Player {
             player_version: self.player_version.unwrap_or(0),
@@ -307,7 +301,6 @@ impl PlayerBuilder {
             start_time,
             max_execution_duration: self.max_execution_duration,
             current_frame,
-            swf_buf,
         }))
     }
 }

@@ -11,3 +11,5 @@ ruffle_wstr = { path = "../../ruffle/wstr" }
 ruffle_render = { path = "../../ruffle/render" }
 anyhow = { workspace = true }
 bitflags = "2.5.0"
+thiserror = "1.0"
+url = "2.5"

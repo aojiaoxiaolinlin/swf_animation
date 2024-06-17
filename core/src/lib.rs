@@ -1,38 +1,47 @@
 mod character;
 mod container;
+mod context;
 mod display_object;
+mod drawing;
 mod library;
 pub mod player;
 mod stage;
-mod context;
-mod drawing;
+mod tag_utils;
 #[cfg(test)]
 mod tests {
-    use std::fs::read;
+    use std::{fs::read, sync::Arc};
+
+    use url::Url;
 
     use crate::{
         container::TDisplayObjectContainer,
         display_object::{movie_clip::MovieClip, TDisplayObject},
         library::MovieLibrary,
+        tag_utils::SwfMovie,
     };
 
     #[test]
     fn test_movie_clip() {
-        let data = if cfg!(target_os = "windows") {
-            read("D:\\Code\\Rust\\swf_animation\\desktop\\swf_files\\spirit2471src.swf").unwrap()
+        let path = if cfg!(target_os = "windows") {
+            "D:\\Code\\Rust\\swf_animation\\desktop\\swf_files\\spirit2471src.swf"
         } else {
-            read("/home/intasect/study/Rust/swf_animation/desktop/swf_files/spirit2471src.swf")
-                .unwrap()
+            "/home/intasect/study/Rust/swf_animation/desktop/swf_files/spirit2471src.swf"
         };
-        let swf_buf = swf::decompress_swf(&data[..]).unwrap();
-        let parse_swf = swf::parse_swf(&swf_buf).unwrap();
-        let mut movie_clip = MovieClip::new(parse_swf.header);
+        let swf_movie = SwfMovie::from_path(path, None).unwrap();
+        let mut movie_clip = MovieClip::new(Arc::new(swf_movie));
         let mut movie_library = MovieLibrary::new();
         movie_clip.set_name(Some("root".to_string()));
-        movie_clip.load_swf(parse_swf.tags, &mut movie_library);
+        movie_clip.load_swf(&mut movie_library);
 
         let ident = 1;
-        println!("{},{}", movie_clip.name().unwrap(), movie_clip.total_frames);
+        println!(
+            "name = {},total_frames = {}
+            length = {}",
+            movie_clip.name().unwrap(),
+            movie_clip.total_frames,
+            movie_clip.movie().data().len()
+        );
+        movie_clip.run_frame_internal(&mut movie_library);
         show_display_object(ident, movie_clip);
     }
 
