@@ -27,6 +27,7 @@
     "Twips",
     "unclipped",
     "Unorm",
+    "unqueue",
     "wgpu",
     "wgsl",
     "winit",

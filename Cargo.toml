@@ -1,6 +1,5 @@
 [workspace]
-members = ["core", "demo", "desktop"]
-default-members = ["desktop"]
+members = ["core"]
 resolver = "2"
 
 [workspace.dependencies]
