@@ -1,4 +1,4 @@
-# SWF Animation Rendering And Control By Rust
+# SWF Animation Runtime
 
 ## To make better use of SWF resources
 
@@ -53,4 +53,4 @@ Flash Player支持显示列表中的一种特殊对象叫做剪裁层。被指�
 
 一旦定义好,就可以在主文件中使用 `PlaceObject2` 标签显示精灵。`PlaceObject` 中指定的变换会与精灵内部对象的变换相连接。这些对象的行为就像是精灵的子对象,所以当精灵移动时,精灵内部的对象也会随之移动。同样地,当精灵被缩放或旋转时,子对象也会被缩放或旋转。当精灵从显示列表中移除时,它会自动停止播放。
 
-当精灵被放置在显示列表上时，可以使用 `PlaceObject2` 标签为其指定一个名称。这个名称用于识别精灵，以便主文件（或其他精灵）可以在精灵内执行操作。这通过 SetTarget 动作实现（参见 `ActionSetTarget`）。
+当精灵被放置在显示列表上时，可以使用 `PlaceObject2` 标签为其指定一个名称。这个名称用于识别精灵，以便主文件（或其他精灵）可以在精灵内执行操作。这通过 SetTarget 动作实现（参考 `ActionSetTarget`）。
