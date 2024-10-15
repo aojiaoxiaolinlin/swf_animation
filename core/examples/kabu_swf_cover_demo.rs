@@ -1,14 +1,11 @@
 use std::{cell::RefCell, sync::Arc};
 
 use player_core::{
-    display_object::{
-        movie_clip::{MovieClip, MovieClipFlags},
-        DisplayObject, DisplayObjectBase, TDisplayObject,
-    },
+    display_object::{movie_clip::MovieClip, DisplayObject, TDisplayObject},
     library::MovieLibrary,
     tag_utils,
 };
-use ruffle_render::{blend::ExtendedBlendMode, transform::Transform};
+use ruffle_render::transform::Transform;
 use swf::{CharacterId, Rectangle, Shape};
 use tracing::debug;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};

@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 swf = { path = "../../ruffle/swf" }
 ruffle_wstr = { path = "../../ruffle/wstr" }
-ruffle_macros = { path = "../../ruffle/core/macros" }
 ruffle_render = { path = "../../ruffle/render" }
 anyhow = { workspace = true }
 smallvec = { version = "1.13.2", features = ["union"] }

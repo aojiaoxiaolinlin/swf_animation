@@ -525,7 +525,6 @@ dependencies = [
  "anyhow",
  "bitflags 2.6.0",
  "enum-map",
- "ruffle_macros",
  "ruffle_render",
  "ruffle_wstr",
  "smallvec",
@@ -571,14 +570,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fa76aaf39101c457836aec0ce2316dbdc3ab723cdda1c6bd4e6ad4208acaca7"
 dependencies = [
  "proc-macro2",
-]
-
-[[package]]
-name = "ruffle_macros"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn",
 ]
 
 [[package]]

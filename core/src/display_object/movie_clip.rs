@@ -1,4 +1,4 @@
-use std::{cell::RefCell, cmp::max, collections::HashMap, process::exit, sync::Arc, usize};
+use std::{cell::RefCell, cmp::max, collections::HashMap, sync::Arc, usize};
 
 use anyhow::anyhow;
 use bitflags::bitflags;
