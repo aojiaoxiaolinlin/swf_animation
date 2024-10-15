@@ -16,17 +16,20 @@ use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt};
 fn main() {
     tracing_subscriber::registry().with(fmt::layer()).init();
 
-    let data = std::fs::read("D:\\Code\\Rust\\swf_animation\\core\\tests\\swfs\\spirit2159src.swf")
-        .unwrap();
+    let data = std::fs::read("core/tests/swfs/spirit2159src.swf").unwrap();
     let swf_movie = tag_utils::SwfMovie::from_data(&data[..]).unwrap();
+    let frame_rate = swf_movie.header().frame_rate();
+
     let mut movie_clip = MovieClip::new(Arc::new(swf_movie));
     let mut movie_library = MovieLibrary::new();
 
     movie_clip.parse_swf(&mut movie_library);
     movie_clip.set_is_root(true);
 
-    let mut time_line = Animation::new();
+    let mut vector_animation =
+        VectorAnimation::new("spirit2159src".to_owned(), frame_rate.to_f32() as u16);
 
+    debug!("frame rate: {}", vector_animation.frame_rate);
     for _ in 0..5 {
         movie_clip.enter_frame(&mut movie_library);
     }
@@ -51,12 +54,32 @@ fn main() {
             for _ in 0..frames {
                 mc.borrow_mut().enter_frame(&mut movie_library);
                 let render_list = mc.borrow().raw_container().render_list();
-                cover_rend_list_to_time_line(&mut time_line, render_list, Transform::default());
+                cover_rend_list_to_time_line(
+                    &mut vector_animation.animations,
+                    render_list,
+                    Transform::default(),
+                );
             }
             goto_frame += 10;
         }
     }
 }
+
+struct VectorAnimation {
+    name: String,
+    frame_rate: u16,
+    animations: Vec<Animation>,
+}
+impl VectorAnimation {
+    fn new(name: String, frame_rate: u16) -> Self {
+        Self {
+            name,
+            frame_rate,
+            animations: vec![],
+        }
+    }
+}
+
 struct Animation {
     time_line: Vec<TimeLineObject>,
     current_frame: u16,
@@ -87,14 +110,14 @@ struct TimeLineObject {
 }
 
 fn cover_rend_list_to_time_line(
-    time_line: &mut Animation,
+    animations: &mut Vec<Animation>,
     render_list: Arc<Vec<Arc<RefCell<DisplayObject>>>>,
     transform: Transform,
 ) {
     for render_object in render_list.iter() {
         if let Some(movie_clip) = render_object.borrow().as_movie_clip() {
             cover_rend_list_to_time_line(
-                time_line,
+                animations,
                 movie_clip.raw_container().render_list().clone(),
                 transform.clone() * movie_clip.transform(),
             );
