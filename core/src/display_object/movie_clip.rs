@@ -8,6 +8,7 @@ use swf::{
     extensions::ReadSwfExt, read::Reader, CharacterId, Color, Depth, PlaceObjectAction, SwfStr,
     TagCode,
 };
+use tracing::error;
 
 use crate::{
     characters::{Character, CompressedBitmap},
@@ -308,7 +309,7 @@ impl MovieClip {
             };
 
             if let Err(e) = self.remove_object(&mut reader, version) {
-                // error!("Error running queued tag: {:?}, got {}", tag.tag_type, e);
+                error!("Error running queued tag: {:?}, got {}", tag.tag_type, e);
             }
         }
 
@@ -670,7 +671,7 @@ impl MovieClip {
                 }
                 (PlaceObjectAction::Place(id), _, _)
                 | (swf::PlaceObjectAction::Replace(id), _, _) => {
-                    if let Some(mut child) =
+                    if let Some(child) =
                         clip.instantiate_child(id, params.depth(), &params.place_object, library)
                     {
                         // Set the place frame to the frame where the object *would* have been placed.
@@ -837,7 +838,7 @@ impl TDisplayObject for MovieClip {
                     _ => unreachable!(),
                 };
                 if let Err(e) = self.place_object(library, &mut reader, version) {
-                    // info!("Error placing object: {:?}", e);
+                    error!("Error placing object: {:?}", e);
                 }
             }
         }

@@ -3,6 +3,7 @@
   "cSpell.words": [
     "bitflags",
     "blit",
+    "bytemuck",
     "canonicalize",
     "chrono",
     "Cxform",
@@ -12,17 +13,21 @@
     "exactfit",
     "fullscreen",
     "fullscreeninteractive",
+    "indexmap",
     "intasect",
     "letterboxed",
+    "msaa",
     "multisample",
     "multisampled",
     "multiview",
     "noborder",
     "noscale",
+    "repr",
     "rngs",
     "Seedable",
     "showall",
     "Srgb",
+    "tessellator",
     "thiserror",
     "Twips",
     "unclipped",
@@ -31,6 +36,7 @@
     "wgpu",
     "wgsl",
     "winit",
-    "wstr"
+    "wstr",
+    "Zeroable"
   ],
 }
