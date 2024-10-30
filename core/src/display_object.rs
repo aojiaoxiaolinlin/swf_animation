@@ -9,7 +9,7 @@ use movie_clip::MovieClip;
 use ruffle_render::{
     blend::ExtendedBlendMode, filters::Filter, matrix::Matrix, transform::Transform,
 };
-use swf::{CharacterId, Color, ColorTransform, Depth, Rectangle, Twips};
+use swf::{CharacterId, Color, ColorTransform, Depth};
 
 use super::{library::MovieLibrary, tag_utils::SwfMovie};
 
@@ -41,7 +41,7 @@ pub struct DisplayObjectBase {
     transform: Transform,
     blend_mode: ExtendedBlendMode,
     flags: DisplayObjectFlags,
-    scaling_grid: Rectangle<Twips>,
+    // scaling_grid: Rectangle<Twips>,
     opaque_background: Option<Color>,
     filters: Vec<Filter>,
 }
@@ -60,7 +60,7 @@ impl Default for DisplayObjectBase {
             opaque_background: Default::default(),
             flags: DisplayObjectFlags::VISIBLE,
             filters: Default::default(),
-            scaling_grid: Default::default(),
+            // scaling_grid: Default::default(),
         }
     }
 }
