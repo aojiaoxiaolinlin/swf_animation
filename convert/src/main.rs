@@ -79,6 +79,10 @@ pub struct TextureTransform {
 pub struct Args {
     /// 输入的swf文件名
     file_path: String,
+    /// 图片放大倍数，默认为1
+    #[arg(short, long, default_value = "1.0")]
+    scale: f32,
+    /// 输出的目录
     output: Option<String>,
 }
 
@@ -162,7 +166,7 @@ fn main() -> anyhow::Result<()> {
     }
     let encoding_for_version = SwfStr::encoding_for_version(swf.header.version());
 
-    generation_shape_image(shapes, bitmaps, &output)?;
+    generation_shape_image(args.scale as f64, shapes, bitmaps, &output)?;
     generation_animation(
         tags,
         file_name,
@@ -174,11 +178,12 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn generation_shape_image(
+    scale: f64,
     shapes: Vec<&swf::Shape>,
     bitmaps: HashMap<CharacterId, CompressedBitmap>,
     output: &PathBuf,
 ) -> anyhow::Result<()> {
-    info!("开始绘制图形");
+    info!("开始绘制图形, 放大倍数: {}", scale);
     // 配置渲染器
     let (device, queue) = get_device_and_queue()?;
     let (
@@ -208,7 +213,6 @@ fn generation_shape_image(
 
         let mut width = shape.shape_bounds.width().to_pixels();
         let mut height = shape.shape_bounds.height().to_pixels();
-        let scale = 2.0;
 
         width *= scale;
         height *= scale;
