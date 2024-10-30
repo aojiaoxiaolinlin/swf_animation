@@ -89,7 +89,7 @@ fn main() -> anyhow::Result<()> {
     let env_filter = tracing_subscriber::EnvFilter::builder().parse_lossy(
         env::var("RUST_LOG")
             .as_deref()
-            .unwrap_or("warn,convert=info"),
+            .unwrap_or("error,convert=info"),
     );
     tracing_subscriber::registry()
         .with(env_filter)
@@ -558,7 +558,7 @@ fn generation_shape_image(
             .expect("Failed to save image");
     }
 
-    pb.finish_with_message("图片生成完成");
+    pb.finish_with_message(format!("转换完成, 路径: {}", output.display()));
     Ok(())
 }
 
