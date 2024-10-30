@@ -1,15 +1,21 @@
-use std::{collections::HashMap, env, fs::File, io::BufReader, path::Path};
+use std::{
+    collections::HashMap,
+    env,
+    fs::File,
+    io::BufReader,
+    path::{Path, PathBuf},
+};
 
+use animation::generation_animation;
 use bitmap::CompressedBitmap;
+use clap::Parser;
+use indicatif::{ProgressBar, ProgressStyle};
 use render::{
     get_device_and_queue,
     mesh::{GradientUniform, VertexColor, VertexPosition},
 };
-use ruffle_render::{
-    tessellator::{DrawType, Gradient},
-    transform,
-};
-use swf::GradientInterpolation;
+use ruffle_render::tessellator::{DrawType, Gradient};
+use swf::{CharacterId, GradientInterpolation, SwfStr};
 use tessellator::ShapeTessellator;
 use tracing::{error, info};
 use tracing_subscriber::{
@@ -18,9 +24,11 @@ use tracing_subscriber::{
     util::SubscriberInitExt,
 };
 use wgpu::{util::DeviceExt, VertexBufferLayout};
+mod animation;
 pub mod bitmap;
 mod render;
 mod tessellator;
+
 /// 制作多大得渐变纹理，
 const GRADIENT_SIZE: usize = 256;
 
@@ -66,7 +74,18 @@ pub struct TextureTransform {
     pub texture_matrix: [[f32; 4]; 4],
 }
 
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+pub struct Args {
+    /// 输入的swf文件名
+    file_path: String,
+    output: Option<String>,
+}
+
 fn main() -> anyhow::Result<()> {
+    let args = Args::parse();
+    let file_path = &args.file_path;
+
     let env_filter = tracing_subscriber::EnvFilter::builder().parse_lossy(
         env::var("RUST_LOG")
             .as_deref()
@@ -77,12 +96,9 @@ fn main() -> anyhow::Result<()> {
         .with(fmt::layer())
         .init();
 
-    // 1. 加载swf文件解析
-    let file_name = "spirit2159src";
-    let path = format!("core/tests/swfs/{}.swf", file_name);
-    let reader = BufReader::new(File::open(path).unwrap());
-    let swf_buf = swf::decompress_swf(reader).unwrap();
-    let swf = swf::parse_swf(&swf_buf).unwrap();
+    let reader = BufReader::new(File::open(file_path)?);
+    let swf_buf = swf::decompress_swf(reader)?;
+    let swf: swf::Swf<'_> = swf::parse_swf(&swf_buf)?;
     let tags = swf.tags;
 
     let mut bitmaps = HashMap::new();
@@ -122,6 +138,47 @@ fn main() -> anyhow::Result<()> {
         })
         .collect();
 
+    // 解析出文件名
+    let path = Path::new(file_path);
+    let file_name = if let Some(file_name) = path.file_name() {
+        file_name.to_str().unwrap()
+    } else {
+        return Err(anyhow::anyhow!("无法获取文件名"));
+    };
+
+    let output = if let Some(output) = &args.output {
+        let path = Path::new(output);
+        path.to_path_buf()
+    } else {
+        // 默认使用当前文件夹路径
+        // 获取当前文件路径
+        let current_dir: PathBuf = env::current_dir()?;
+        let file_name: Vec<&str> = file_name.split(".").collect();
+        current_dir.join("output").join(file_name.first().unwrap())
+    };
+    // 判断路径是否存在，如果不存在则创建
+    if !output.exists() {
+        std::fs::create_dir_all(&output)?;
+    }
+    let encoding_for_version = SwfStr::encoding_for_version(swf.header.version());
+
+    generation_shape_image(shapes, bitmaps, &output)?;
+    generation_animation(
+        tags,
+        file_name,
+        &output,
+        swf.header.frame_rate().to_f32() as u16,
+        encoding_for_version,
+    )?;
+    Ok(())
+}
+
+fn generation_shape_image(
+    shapes: Vec<&swf::Shape>,
+    bitmaps: HashMap<CharacterId, CompressedBitmap>,
+    output: &PathBuf,
+) -> anyhow::Result<()> {
+    info!("开始绘制图形");
     // 配置渲染器
     let (device, queue) = get_device_and_queue()?;
     let (
@@ -130,9 +187,19 @@ fn main() -> anyhow::Result<()> {
         (bitmap_render_pipeline, bitmap_bind_group_layout),
     ) = create_render_pipelines(&device);
 
+    let pb = ProgressBar::new(shapes.len() as u64);
+    pb.set_style(
+        ProgressStyle::with_template(
+            "[{elapsed_precise}] {bar:40.cyan/blue} [{eta_precise}] {pos:>7}/{len:7} {msg}",
+        )
+        .unwrap()
+        .progress_chars("#>-"),
+    );
+
     // 解析Shape渲染
     let mut tessellator = ShapeTessellator::new();
     for shape in shapes {
+        pb.inc(1);
         let x_min = shape.shape_bounds.x_min.to_pixels();
         let y_min = shape.shape_bounds.y_min.to_pixels();
         // 计算(x_min, y_min)的到(0,0)的偏移量
@@ -145,8 +212,6 @@ fn main() -> anyhow::Result<()> {
 
         width *= scale;
         height *= scale;
-
-        info!("开始绘制图形 shape id: {}", shape.id);
 
         let size = wgpu::Extent3d {
             width: width as u32 + 1,
@@ -377,8 +442,8 @@ fn main() -> anyhow::Result<()> {
                             &wgpu::TextureDescriptor {
                                 label: Some("Bitmap Texture"),
                                 size: wgpu::Extent3d {
-                                    width: bitmap.width() as u32,
-                                    height: bitmap.height() as u32,
+                                    width: bitmap.width(),
+                                    height: bitmap.height(),
                                     depth_or_array_layers: 1,
                                 },
                                 mip_level_count: 1,
@@ -446,8 +511,8 @@ fn main() -> anyhow::Result<()> {
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
         });
-        let unpadded_byte_per_row = size.width as u32 * 4;
-        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT as u32;
+        let unpadded_byte_per_row = size.width * 4;
+        let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let padded_byte_per_row_padding = (align - unpadded_byte_per_row % align) % align;
         let padded_byte_per_row = unpadded_byte_per_row + padded_byte_per_row_padding;
         // 将输出纹理提取到缓冲区中
@@ -488,16 +553,12 @@ fn main() -> anyhow::Result<()> {
         }
         let image_buffer = image::RgbaImage::from_raw(size.width, size.height, bytes)
             .expect("Retrieved texture buffer must be a valid RgbaImage");
-        let mut output_path = format!("output/{}", file_name);
-        // 不存output_path在则创建
-        if !Path::new(&output_path).exists() {
-            std::fs::create_dir_all(&output_path).expect("Failed to create output directory");
-        }
-        output_path += &format!("/{}.png", shape.id);
         image_buffer
-            .save(output_path)
+            .save(output.join(format!("{}.png", shape.id)))
             .expect("Failed to save image");
     }
+
+    pb.finish_with_message("图片生成完成");
     Ok(())
 }
 

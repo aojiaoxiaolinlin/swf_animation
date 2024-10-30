@@ -141,8 +141,8 @@ fn tags_to_swf_movie(tags: &[Tag], swf_header: &Header) -> SwfMovie {
 struct VectorAnimation {
     name: String,
     frame_rate: u16,
-    base_animations: HashMap<CharacterId, Animation>, //
-    animation_ids: Vec<CharacterId>,                  //
+    base_animations: HashMap<CharacterId, Animation>,
+    animation_ids: Vec<CharacterId>,
 }
 
 impl VectorAnimation {
