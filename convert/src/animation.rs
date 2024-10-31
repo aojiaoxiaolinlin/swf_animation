@@ -215,12 +215,7 @@ pub fn generation_animation(
     let mut vector_animation =
         VectorAnimation::new(file_name.first().unwrap().to_string(), frame_rate);
 
-    // 记录shape id 和 sprite id
-    let mut shape_ids = vec![];
     tags.iter().for_each(|tag| {
-        if let Tag::DefineShape(shape) = tag {
-            shape_ids.push(shape.id);
-        }
         if let Tag::DefineSprite(sprite) = tag {
             parse_sprite_animation(&mut vector_animation, sprite.clone());
         }
