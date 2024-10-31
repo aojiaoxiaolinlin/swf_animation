@@ -1,0 +1,32 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build
+      run: cargo build --release --package=convert 
+
+    - uses: manoadamro/rust-release@v1
+      with:
+        # Github Repo Owner
+        owner: aojiaoxiaolinlin
+        # Github Repo
+        repo: https://github.com/aojiaoxiaolinlin/swf_animation
+        # Github Token
+        token: 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
+        # Cargo.toml path
+        cargo: https://github.com/aojiaoxiaolinlin/swf_animation/blob/main/convert/Cargo.toml
