@@ -9,8 +9,10 @@ authors = ["傲娇小霖霖"]
 
 
 [dependencies]
-swf = { workspace = true }
-ruffle_render = { workspace = true, features = ["tessellator"] }
+swf = { git = "https://github.com/ruffle-rs/ruffle.git", tag = "nightly-2024-10-25" }
+ruffle_render = { git = "https://github.com/ruffle-rs/ruffle.git", tag = "nightly-2024-10-25", features = [
+    "tessellator",
+] }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 anyhow = { workspace = true }

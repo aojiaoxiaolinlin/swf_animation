@@ -414,10 +414,10 @@ dependencies = [
  "indicatif",
  "lyon_tessellation",
  "player_core",
- "ruffle_render",
+ "ruffle_render 0.1.0 (git+https://github.com/ruffle-rs/ruffle.git?tag=nightly-2024-10-25)",
  "serde",
  "serde_json",
- "swf",
+ "swf 0.2.1 (git+https://github.com/ruffle-rs/ruffle.git?tag=nightly-2024-10-25)",
  "tracing",
  "tracing-subscriber",
  "wgpu",
@@ -1662,10 +1662,10 @@ dependencies = [
  "anyhow",
  "bitflags 2.6.0",
  "enum-map",
- "ruffle_render",
- "ruffle_wstr",
+ "ruffle_render 0.1.0",
+ "ruffle_wstr 0.1.0",
  "smallvec",
- "swf",
+ "swf 0.2.1",
  "thiserror",
  "tracing",
  "tracing-subscriber",
@@ -1952,14 +1952,38 @@ dependencies = [
  "h263-rs-yuv",
  "indexmap",
  "jpeg-decoder",
+ "lyon_geom",
+ "num-derive",
+ "num-traits",
+ "png",
+ "ruffle_wstr 0.1.0",
+ "smallvec",
+ "swf 0.2.1",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "ruffle_render"
+version = "0.1.0"
+source = "git+https://github.com/ruffle-rs/ruffle.git?tag=nightly-2024-10-25#1cfb42059095da9a9695d09518ef77997a0cafa0"
+dependencies = [
+ "byteorder",
+ "downcast-rs",
+ "enum-map",
+ "flate2",
+ "gif",
+ "h263-rs-yuv",
+ "indexmap",
+ "jpeg-decoder",
  "lyon",
  "lyon_geom",
  "num-derive",
  "num-traits",
  "png",
- "ruffle_wstr",
+ "ruffle_wstr 0.1.0 (git+https://github.com/ruffle-rs/ruffle.git?tag=nightly-2024-10-25)",
  "smallvec",
- "swf",
+ "swf 0.2.1 (git+https://github.com/ruffle-rs/ruffle.git?tag=nightly-2024-10-25)",
  "thiserror",
  "tracing",
 ]
@@ -1967,6 +1991,11 @@ dependencies = [
 [[package]]
 name = "ruffle_wstr"
 version = "0.1.0"
+
+[[package]]
+name = "ruffle_wstr"
+version = "0.1.0"
+source = "git+https://github.com/ruffle-rs/ruffle.git?tag=nightly-2024-10-25#1cfb42059095da9a9695d09518ef77997a0cafa0"
 
 [[package]]
 name = "rustc-hash"
@@ -2141,6 +2170,24 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 [[package]]
 name = "swf"
 version = "0.2.1"
+dependencies = [
+ "bitflags 2.6.0",
+ "bitstream-io",
+ "byteorder",
+ "encoding_rs",
+ "enum-map",
+ "flate2",
+ "log",
+ "lzma-rs",
+ "num-derive",
+ "num-traits",
+ "simple_asn1",
+]
+
+[[package]]
+name = "swf"
+version = "0.2.1"
+source = "git+https://github.com/ruffle-rs/ruffle.git?tag=nightly-2024-10-25#1cfb42059095da9a9695d09518ef77997a0cafa0"
 dependencies = [
  "bitflags 2.6.0",
  "bitstream-io",

@@ -6,8 +6,8 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-swf = { workspace = true }
-ruffle_render = { workspace = true }
+swf = { path = "../../ruffle/swf" }
+ruffle_render = { path = "../../ruffle/render" }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 

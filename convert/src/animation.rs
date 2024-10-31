@@ -217,7 +217,7 @@ pub fn generation_animation(
 
     tags.iter().for_each(|tag| {
         if let Tag::DefineSprite(sprite) = tag {
-            parse_sprite_animation(&mut vector_animation, sprite.clone());
+            parse_sprite_animation(&mut vector_animation, sprite);
         }
     });
 
@@ -251,7 +251,7 @@ fn parse_animation(
                     }
                     add_time_line(
                         vector_animation.animation(&animation_name),
-                        place_object,
+                        &place_object,
                         id,
                         current_frame,
                     );
@@ -259,7 +259,7 @@ fn parse_animation(
                 swf::PlaceObjectAction::Modify => {
                     modify_at_depth(
                         vector_animation.animation(&animation_name),
-                        place_object,
+                        &place_object,
                         current_frame,
                     );
                 }
@@ -268,7 +268,7 @@ fn parse_animation(
                         vector_animation
                             .animation(&animation_name)
                             .time_line(place_object.depth),
-                        place_object,
+                        &place_object,
                         id,
                         current_frame,
                     );
@@ -314,11 +314,11 @@ fn parse_animation(
         .set_total_frame(current_frame);
 }
 
-fn parse_sprite_animation(vector_animation: &mut VectorAnimation, sprite: swf::Sprite) {
+fn parse_sprite_animation(vector_animation: &mut VectorAnimation, sprite: &swf::Sprite) {
     let mut current_frame = 0;
     let mut animation = Animation::default();
     animation.set_total_frame(sprite.num_frames);
-    for tag in sprite.tags {
+    for tag in sprite.tags.iter() {
         match tag {
             Tag::PlaceObject(place_object) => match place_object.action {
                 swf::PlaceObjectAction::Place(id) => {
@@ -359,7 +359,7 @@ fn parse_sprite_animation(vector_animation: &mut VectorAnimation, sprite: swf::S
 
 fn add_time_line(
     animation: &mut Animation,
-    place_object: Box<swf::PlaceObject>,
+    place_object: &Box<swf::PlaceObject>,
     id: CharacterId,
     current_frame: u16,
 ) {
@@ -377,7 +377,7 @@ fn add_time_line(
         ));
     }
     let mut frame = Frame::new(id, current_frame);
-    apply_place_object(&mut frame, &place_object);
+    apply_place_object(&mut frame, place_object);
     timeline.add_frame(frame);
 }
 
@@ -414,7 +414,7 @@ fn apply_place_object(frame: &mut Frame, place_object: &swf::PlaceObject) {
 
 fn replace_at_depth(
     time_line: &mut TimeLine,
-    place_object: Box<swf::PlaceObject>,
+    place_object: &Box<swf::PlaceObject>,
     id: CharacterId,
     current_frame: u16,
 ) {
@@ -445,7 +445,7 @@ fn clear_blank_frame(vector_animation: &mut VectorAnimation) {
 
 fn modify_at_depth(
     animation: &mut Animation,
-    place_object: Box<swf::PlaceObject>,
+    place_object: &Box<swf::PlaceObject>,
     current_frame: u16,
 ) {
     let timeline = animation.insert_or_get_time_line(place_object.depth);
