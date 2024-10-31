@@ -23,10 +23,8 @@ jobs:
     - uses: manoadamro/rust-release@v1
       with:
         # Github Repo Owner
-        owner: aojiaoxiaolinlin
+        owner: ${{ github.repository_owner }}
         # Github Repo
-        repo: https://github.com/aojiaoxiaolinlin/swf_animation
+        repo: ${{ github.repository }}
         # Github Token
-        token: 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
-        # Cargo.toml path
-        cargo:  Cargo.toml
+        token: ${{ secrets.GITHUB_TOKEN }}
