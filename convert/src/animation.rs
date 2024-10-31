@@ -40,7 +40,6 @@ impl VectorAnimation {
 #[derive(Default, Serialize, Deserialize, Debug)]
 pub struct Animation {
     time_lines: BTreeMap<Depth, TimeLine>,
-    current_frame: u16,
     total_frames: u16,
 }
 impl Animation {
@@ -53,7 +52,7 @@ impl Animation {
     fn insert_or_get_time_line(&mut self, depth: Depth) -> &mut TimeLine {
         self.time_lines
             .entry(depth)
-            .or_insert_with(|| TimeLine::new(depth))
+            .or_insert_with(|| TimeLine::new())
     }
     fn set_total_frame(&mut self, total_frame: u16) {
         self.total_frames = total_frame;
@@ -61,13 +60,11 @@ impl Animation {
 }
 #[derive(Default, Serialize, Deserialize, Debug)]
 pub struct TimeLine {
-    depth: Depth,
     frames: Vec<Frame>,
 }
 impl TimeLine {
-    pub fn new(depth: CharacterId) -> Self {
+    pub fn new() -> Self {
         Self {
-            depth,
             ..Default::default()
         }
     }
@@ -85,7 +82,7 @@ pub struct Frame {
     place_frame: u16,
     duration: u16,
     // children: Vec<CharacterId>, //嵌套的动画
-    matrix: [[f32; 4]; 4],
+    matrix: Matrix,
     color_transform: ColorTransform,
     blend_mode: BlendMode,
     // filters: Vec<Filter>,
@@ -152,7 +149,15 @@ impl From<swf::DropShadowFilter> for DropShadowFilter {
         }
     }
 }
-
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+pub struct Matrix {
+    pub a: f32,
+    pub b: f32,
+    pub c: f32,
+    pub d: f32,
+    pub tx: f32,
+    pub ty: f32,
+}
 #[derive(Default, Serialize, Deserialize, Debug)]
 pub struct ColorTransform {
     mult_color: [f32; 4],
@@ -206,7 +211,9 @@ pub fn generation_animation(
     frame_rate: u16,
     encoding_for_version: &'static Encoding,
 ) -> anyhow::Result<()> {
-    let mut vector_animation = VectorAnimation::new(file_name.to_string(), frame_rate);
+    let file_name: Vec<&str> = file_name.split(".").collect();
+    let mut vector_animation =
+        VectorAnimation::new(file_name.first().unwrap().to_string(), frame_rate);
 
     // 记录shape id 和 sprite id
     let mut shape_ids = vec![];
@@ -306,6 +313,10 @@ fn parse_animation(
             }
         }
     }
+    // 最后一个动画结束，记录总帧数
+    vector_animation
+        .animation(&animation_name)
+        .set_total_frame(current_frame);
 }
 
 fn parse_sprite_animation(vector_animation: &mut VectorAnimation, sprite: swf::Sprite) {
@@ -377,17 +388,14 @@ fn add_time_line(
 
 fn apply_place_object(frame: &mut Frame, place_object: &swf::PlaceObject) {
     if let Some(matrix) = place_object.matrix {
-        frame.matrix = [
-            [matrix.a.to_f32(), matrix.b.to_f32(), 0.0, 0.0],
-            [matrix.c.to_f32(), matrix.d.to_f32(), 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [
-                matrix.tx.to_pixels() as f32,
-                matrix.ty.to_pixels() as f32,
-                0.0,
-                1.0,
-            ],
-        ];
+        frame.matrix = Matrix {
+            a: matrix.a.to_f32(),
+            b: matrix.b.to_f32(),
+            c: matrix.c.to_f32(),
+            d: matrix.d.to_f32(),
+            tx: matrix.tx.to_pixels() as f32,
+            ty: matrix.ty.to_pixels() as f32,
+        };
     }
 
     if let Some(color_transform) = place_object.color_transform {
@@ -422,7 +430,6 @@ fn replace_at_depth(
 
 fn remove_at_depth(time_line: &mut TimeLine) {
     // 设置为空白帧 （即不显示任何内容）默认Id为0是空白帧
-    // TODO: 优化 后续删除时，直接删除该帧
     time_line.add_frame(Frame::new(CharacterId::default(), 0));
 }
 
