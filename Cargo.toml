@@ -1,5 +1,5 @@
 [workspace]
-members = ["convert", "core"]
+members = ["convert"]
 resolver = "2"
 
 [workspace.dependencies]
