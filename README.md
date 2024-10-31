@@ -67,13 +67,15 @@
                         },
                      ]
                   }
-               }
+               },
+               // 动画总帧数
+               "total_frames": 1
             }
          },
          // 目标动画，key为动画名称，value为动画数据，这里的名称默认是`default`，因为没有在adobe animation中设置动画标签，所以默认为`default`。当设置了动画标签后，这里会根据标签名称进行分类，一个标签代表一个动画。
-           "animations": {
-               "default": {
-                  "time_lines": {
+         "animations": {
+            "default": {
+               "time_lines": {
                   "1": {
                      "frames": [
                         {
@@ -107,7 +109,9 @@
                      ]
                   }
                }
-            }
+            },
+            // 动画总帧数
+            "total_frames": 1
          }
       }
    ```
