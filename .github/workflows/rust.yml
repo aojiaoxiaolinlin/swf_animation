@@ -20,11 +20,22 @@ jobs:
     - name: Build
       run: cargo build --release --package=convert 
 
-    - uses: manoadamro/rust-release@v1
+    - name: Package
+      run: |
+        mkdir -p output
+        cp target/release/convert.exe output/
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v2
       with:
-        # Github Repo Owner
-        owner: ${{ github.repository_owner }}
-        # Github Repo
-        repo: ${{ github.repository }}
-        # Github Token
-        token: ${{ secrets.GITHUB_TOKEN }}
+        name: rust-executable
+        path: output/
+
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v0.1.0
+        files: output/convert.exe
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
