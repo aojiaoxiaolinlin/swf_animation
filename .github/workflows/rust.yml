@@ -29,4 +29,4 @@ jobs:
         # Github Token
         token: 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
         # Cargo.toml path
-        cargo:  ../Cargo.toml
+        cargo:  Cargo.toml
