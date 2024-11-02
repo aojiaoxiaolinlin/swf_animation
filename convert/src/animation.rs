@@ -1,3 +1,4 @@
+use filter::Filter;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -7,13 +8,14 @@ use std::{
 };
 
 use swf::{CharacterId, Depth, Encoding, Tag};
+mod filter;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct VectorAnimation {
     name: String,
     frame_rate: u16,
     base_animations: HashMap<CharacterId, Animation>,
-    animations: HashMap<String, Animation>,
+    animations: BTreeMap<String, Animation>,
 }
 
 impl VectorAnimation {
@@ -22,7 +24,7 @@ impl VectorAnimation {
             name,
             frame_rate,
             base_animations: HashMap::new(),
-            animations: HashMap::new(),
+            animations: BTreeMap::new(),
         }
     }
     pub fn add_animation(&mut self, label: &String, animation: Animation) {
@@ -85,7 +87,7 @@ pub struct Frame {
     matrix: Matrix,
     color_transform: ColorTransform,
     blend_mode: BlendMode,
-    // filters: Vec<Filter>,
+    filters: Vec<Filter>,
 }
 
 impl Frame {
@@ -108,47 +110,6 @@ impl Frame {
     }
 }
 
-// #[derive(Serialize, Deserialize, Debug)]
-// pub enum Filter {
-//     DropShadowFilter(Box<DropShadowFilter>),
-//     BlurFilter(Box<BlurFilter>),
-//     GlowFilter(Box<GlowFilter>),
-//     BevelFilter(Box<BevelFilter>),
-//     GradientGlowFilter(Box<GradientFilter>),
-//     ConvolutionFilter(Box<ConvolutionFilter>),
-//     ColorMatrixFilter(Box<ColorMatrixFilter>),
-//     GradientBevelFilter(Box<GradientFilter>),
-// }
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct DropShadowFilter {
-    pub color: [u8; 4],
-    pub blur_x: f32,
-    pub blur_y: f32,
-    pub angle: f32,
-    pub distance: f32,
-    pub strength: f32,
-    pub flags: u8,
-}
-
-impl From<swf::DropShadowFilter> for DropShadowFilter {
-    fn from(filter: swf::DropShadowFilter) -> Self {
-        Self {
-            color: [
-                filter.color.r,
-                filter.color.g,
-                filter.color.b,
-                filter.color.a,
-            ],
-            blur_x: filter.blur_x.to_f32(),
-            blur_y: filter.blur_y.to_f32(),
-            angle: filter.angle.to_f32(),
-            distance: filter.distance.to_f32(),
-            strength: filter.strength.to_f32(),
-            flags: filter.flags.bits(),
-        }
-    }
-}
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Matrix {
     pub a: f32,
@@ -404,12 +365,9 @@ fn apply_place_object(frame: &mut Frame, place_object: &swf::PlaceObject) {
         frame.blend_mode = BlendMode::from_swf_blend_mode(blend_mode);
     }
 
-    // if let Some(filters) = place_object.filters {
-    //     frame.filters = filters
-    //         .iter()
-    //         .map(|filter| Filter::from_swf_filter(filter))
-    //         .collect();
-    // }
+    if let Some(filters) = &place_object.filters {
+        frame.filters = filters.iter().map(Filter::from).collect();
+    }
 }
 
 fn replace_at_depth(
