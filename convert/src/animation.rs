@@ -1,9 +1,10 @@
 use filter::Filter;
+use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
     fs::File,
-    io::BufWriter,
+    io::{BufWriter, Write},
     path::PathBuf,
 };
 
@@ -188,9 +189,17 @@ pub fn generation_animation(
     clear_blank_frame(&mut vector_animation);
     // 写入animation.json文件
     let writer = BufWriter::new(File::create(output.join("animation.json"))?);
-
+    // 二进制格式写入animation.an文件
     serde_json::to_writer_pretty(writer, &vector_animation)?;
-
+    let mut buf = Vec::new();
+    // 1.
+    // vector_animation.serialize(&mut Serializer::new(&mut buf))?;
+    // 2. 更高效？
+    let mut serializer =
+        rmp_serde::Serializer::new(&mut buf).with_bytes(rmp_serde::config::BytesMode::ForceAll);
+    // 写入animation.an文件
+    vector_animation.serialize(&mut serializer)?;
+    File::create(output.join("animation.an"))?.write_all(&buf)?;
     Ok(())
 }
 
