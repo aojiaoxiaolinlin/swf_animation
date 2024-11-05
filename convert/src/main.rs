@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     env,
     fs::File,
     io::BufReader,
@@ -166,9 +166,17 @@ fn main() -> anyhow::Result<()> {
     }
     let encoding_for_version = SwfStr::encoding_for_version(swf.header.version());
 
-    generation_shape_image(args.scale as f64, shapes, bitmaps, &output)?;
+    let mut shape_transform = BTreeMap::new();
+    generation_shape_image(
+        args.scale as f64,
+        shapes,
+        &mut shape_transform,
+        bitmaps,
+        &output,
+    )?;
     generation_animation(
         tags,
+        shape_transform,
         file_name,
         &output,
         swf.header.frame_rate().to_f32() as u16,
@@ -180,6 +188,7 @@ fn main() -> anyhow::Result<()> {
 fn generation_shape_image(
     scale: f64,
     shapes: Vec<&swf::Shape>,
+    shape_transform: &mut BTreeMap<CharacterId, (f32, f32)>,
     bitmaps: HashMap<CharacterId, CompressedBitmap>,
     output: &PathBuf,
 ) -> anyhow::Result<()> {
@@ -207,6 +216,12 @@ fn generation_shape_image(
         pb.inc(1);
         let x_min = shape.shape_bounds.x_min.to_pixels();
         let y_min = shape.shape_bounds.y_min.to_pixels();
+        let x_max = shape.shape_bounds.x_max.to_pixels();
+        let y_max = shape.shape_bounds.y_max.to_pixels();
+        shape_transform.insert(
+            shape.id,
+            ((x_min + x_max) as f32 / 2.0, (y_min + y_max) as f32 / 2.0),
+        );
         // 计算(x_min, y_min)的到(0,0)的偏移量
         let x_offset = 0.0 - x_min as f32;
         let y_offset = 0.0 - y_min as f32;

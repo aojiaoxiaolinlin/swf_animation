@@ -1,5 +1,4 @@
 use anyhow::anyhow;
-use tracing::info;
 
 pub(crate) mod mesh;
 
@@ -28,7 +27,7 @@ fn try_wgpu_backend(backends: wgpu::Backends) -> Option<wgpu::Instance> {
 pub fn get_device_and_queue() -> anyhow::Result<(wgpu::Device, wgpu::Queue)> {
     let (instance, backend) = create_wgpu_instance()?;
 
-    let (adapter, device, queue) = futures::executor::block_on(request_adapter_and_device(
+    let (_adapter, device, queue) = futures::executor::block_on(request_adapter_and_device(
         backend,
         &instance,
         None,
@@ -36,8 +35,6 @@ pub fn get_device_and_queue() -> anyhow::Result<(wgpu::Device, wgpu::Queue)> {
     ))
     .map_err(|e| anyhow!(e.to_string()))?;
 
-    let adapter_info = adapter.get_info();
-    info!("适配器信息：{:?}", adapter_info);
     Ok((device, queue))
 }
 

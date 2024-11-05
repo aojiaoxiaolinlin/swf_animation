@@ -1,5 +1,4 @@
 use filter::Filter;
-use rmp_serde::Serializer;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -15,6 +14,7 @@ mod filter;
 pub struct VectorAnimation {
     name: String,
     frame_rate: u16,
+    shape_transform: BTreeMap<CharacterId, (f32, f32)>,
     base_animations: HashMap<CharacterId, Animation>,
     animations: BTreeMap<String, Animation>,
 }
@@ -24,6 +24,7 @@ impl VectorAnimation {
         Self {
             name,
             frame_rate,
+            shape_transform: BTreeMap::new(),
             base_animations: HashMap::new(),
             animations: BTreeMap::new(),
         }
@@ -42,51 +43,30 @@ impl VectorAnimation {
 }
 #[derive(Default, Serialize, Deserialize, Debug)]
 pub struct Animation {
-    time_lines: BTreeMap<Depth, TimeLine>,
+    timelines: BTreeMap<Depth, Vec<Frame>>,
     total_frames: u16,
 }
 impl Animation {
-    fn time_lines(&mut self) -> &mut BTreeMap<Depth, TimeLine> {
-        &mut self.time_lines
+    fn timelines(&mut self) -> &mut BTreeMap<Depth, Vec<Frame>> {
+        &mut self.timelines
     }
-    fn time_line(&mut self, depth: Depth) -> &mut TimeLine {
-        self.time_lines.get_mut(&depth).unwrap()
+    fn timeline(&mut self, depth: Depth) -> &mut Vec<Frame> {
+        self.timelines.get_mut(&depth).unwrap()
     }
-    fn insert_or_get_time_line(&mut self, depth: Depth) -> &mut TimeLine {
-        self.time_lines
-            .entry(depth)
-            .or_insert_with(|| TimeLine::new())
+    fn insert_or_get_timeline(&mut self, depth: Depth) -> &mut Vec<Frame> {
+        self.timelines.entry(depth).or_insert_with(|| Vec::new())
     }
     fn set_total_frame(&mut self, total_frame: u16) {
         self.total_frames = total_frame;
     }
 }
-#[derive(Default, Serialize, Deserialize, Debug)]
-pub struct TimeLine {
-    frames: Vec<Frame>,
-}
-impl TimeLine {
-    pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
-    }
-    pub fn add_frame(&mut self, frame: Frame) {
-        self.frames.push(frame);
-    }
-    fn late_frame(&mut self) -> &mut Frame {
-        self.frames.last_mut().unwrap()
-    }
-}
 
-#[derive(Default, Serialize, Deserialize, Debug)]
+#[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub struct Frame {
     id: CharacterId,
     place_frame: u16,
     duration: u16,
-    // children: Vec<CharacterId>, //嵌套的动画
-    matrix: Matrix,
-    color_transform: ColorTransform,
+    transform: Transform,
     blend_mode: BlendMode,
     filters: Vec<Filter>,
 }
@@ -111,6 +91,11 @@ impl Frame {
     }
 }
 
+#[derive(Clone, Default, Serialize, Deserialize, Debug)]
+pub struct Transform {
+    matrix: Matrix,
+    color_transform: ColorTransform,
+}
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Matrix {
     pub a: f32,
@@ -120,12 +105,12 @@ pub struct Matrix {
     pub tx: f32,
     pub ty: f32,
 }
-#[derive(Default, Serialize, Deserialize, Debug)]
+#[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub struct ColorTransform {
     mult_color: [f32; 4],
     add_color: [f32; 4],
 }
-#[derive(Default, Serialize, Deserialize, Debug)]
+#[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub enum BlendMode {
     #[default]
     Normal,
@@ -168,6 +153,7 @@ impl BlendMode {
 // 生成动画文件
 pub fn generation_animation(
     tags: Vec<Tag>,
+    shape_transform: BTreeMap<CharacterId, (f32, f32)>,
     file_name: &str,
     output: &PathBuf,
     frame_rate: u16,
@@ -176,7 +162,7 @@ pub fn generation_animation(
     let file_name: Vec<&str> = file_name.split(".").collect();
     let mut vector_animation =
         VectorAnimation::new(file_name.first().unwrap().to_string(), frame_rate);
-
+    vector_animation.shape_transform = shape_transform;
     tags.iter().for_each(|tag| {
         if let Tag::DefineSprite(sprite) = tag {
             parse_sprite_animation(&mut vector_animation, sprite);
@@ -188,7 +174,9 @@ pub fn generation_animation(
     // 清除空白帧
     clear_blank_frame(&mut vector_animation);
     // 写入animation.json文件
-    let writer = BufWriter::new(File::create(output.join("animation.json"))?);
+    let writer = BufWriter::new(File::create(
+        output.join(format!("{}.json", file_name.first().unwrap().to_string())),
+    )?);
     // 二进制格式写入animation.an文件
     serde_json::to_writer_pretty(writer, &vector_animation)?;
     let mut buf = Vec::new();
@@ -219,7 +207,7 @@ fn parse_animation(
                         animation_name = String::from("default");
                         vector_animation.add_animation(&animation_name, Animation::default());
                     }
-                    add_time_line(
+                    add_timeline(
                         vector_animation.animation(&animation_name),
                         &place_object,
                         id,
@@ -237,7 +225,7 @@ fn parse_animation(
                     replace_at_depth(
                         vector_animation
                             .animation(&animation_name)
-                            .time_line(place_object.depth),
+                            .timeline(place_object.depth),
                         &place_object,
                         id,
                         current_frame,
@@ -248,17 +236,17 @@ fn parse_animation(
                 remove_at_depth(
                     vector_animation
                         .animation(&animation_name)
-                        .time_line(remove_object.depth),
+                        .timeline(remove_object.depth),
                 );
             }
             Tag::ShowFrame => {
                 current_frame += 1;
                 vector_animation
                     .animation(&animation_name)
-                    .time_lines()
+                    .timelines()
                     .iter_mut()
-                    .for_each(|(_, time_line)| {
-                        let late_frame = time_line.late_frame();
+                    .for_each(|(_, timeline)| {
+                        let late_frame = timeline.last_mut().unwrap();
                         late_frame.auto_add();
                     });
             }
@@ -292,14 +280,14 @@ fn parse_sprite_animation(vector_animation: &mut VectorAnimation, sprite: &swf::
         match tag {
             Tag::PlaceObject(place_object) => match place_object.action {
                 swf::PlaceObjectAction::Place(id) => {
-                    add_time_line(&mut animation, place_object, id, current_frame);
+                    add_timeline(&mut animation, place_object, id, current_frame);
                 }
                 swf::PlaceObjectAction::Modify => {
                     modify_at_depth(&mut animation, place_object, current_frame);
                 }
                 swf::PlaceObjectAction::Replace(id) => {
                     replace_at_depth(
-                        animation.time_line(place_object.depth),
+                        animation.timeline(place_object.depth),
                         place_object,
                         id,
                         current_frame,
@@ -307,17 +295,14 @@ fn parse_sprite_animation(vector_animation: &mut VectorAnimation, sprite: &swf::
                 }
             },
             Tag::RemoveObject(remove_object) => {
-                remove_at_depth(animation.time_line(remove_object.depth));
+                remove_at_depth(animation.timeline(remove_object.depth));
             }
             Tag::ShowFrame => {
                 current_frame += 1;
-                animation
-                    .time_lines()
-                    .iter_mut()
-                    .for_each(|(_, time_line)| {
-                        let late_frame = time_line.late_frame();
-                        late_frame.auto_add();
-                    });
+                animation.timelines().iter_mut().for_each(|(_, timeline)| {
+                    let late_frame = timeline.last_mut().unwrap();
+                    late_frame.auto_add();
+                });
             }
             _ => {
                 continue;
@@ -327,33 +312,26 @@ fn parse_sprite_animation(vector_animation: &mut VectorAnimation, sprite: &swf::
     vector_animation.register_base_animation(sprite.id, animation);
 }
 
-fn add_time_line(
+fn add_timeline(
     animation: &mut Animation,
     place_object: &Box<swf::PlaceObject>,
     id: CharacterId,
     current_frame: u16,
 ) {
-    let timeline = animation.insert_or_get_time_line(place_object.depth);
+    let timeline = animation.insert_or_get_timeline(place_object.depth);
     // 补齐空白帧
-    let frame_delta = current_frame
-        - timeline
-            .frames
-            .iter()
-            .map(|frame| frame.duration)
-            .sum::<u16>();
+    let frame_delta = current_frame - timeline.iter().map(|frame| frame.duration).sum::<u16>();
     if frame_delta > 0 {
-        timeline.add_frame(Frame::space_frame(
-            current_frame - timeline.frames.len() as u16,
-        ));
+        timeline.push(Frame::space_frame(current_frame - timeline.len() as u16));
     }
     let mut frame = Frame::new(id, current_frame);
     apply_place_object(&mut frame, place_object);
-    timeline.add_frame(frame);
+    timeline.push(frame);
 }
 
 fn apply_place_object(frame: &mut Frame, place_object: &swf::PlaceObject) {
     if let Some(matrix) = place_object.matrix {
-        frame.matrix = Matrix {
+        frame.transform.matrix = Matrix {
             a: matrix.a.to_f32(),
             b: matrix.b.to_f32(),
             c: matrix.c.to_f32(),
@@ -364,7 +342,7 @@ fn apply_place_object(frame: &mut Frame, place_object: &swf::PlaceObject) {
     }
 
     if let Some(color_transform) = place_object.color_transform {
-        frame.color_transform = ColorTransform {
+        frame.transform.color_transform = ColorTransform {
             mult_color: color_transform.mult_rgba_normalized(),
             add_color: color_transform.add_rgba_normalized(),
         };
@@ -380,27 +358,30 @@ fn apply_place_object(frame: &mut Frame, place_object: &swf::PlaceObject) {
 }
 
 fn replace_at_depth(
-    time_line: &mut TimeLine,
+    timeline: &mut Vec<Frame>,
     place_object: &Box<swf::PlaceObject>,
     id: CharacterId,
     current_frame: u16,
 ) {
-    let mut frame = Frame::new(id, current_frame);
+    let mut frame = timeline.last_mut().unwrap().clone();
+    frame.id = id;
+    frame.place_frame = current_frame;
+    frame.duration = 0;
     apply_place_object(&mut frame, &place_object);
-    time_line.add_frame(frame);
+    timeline.push(frame);
 }
 
-fn remove_at_depth(time_line: &mut TimeLine) {
+fn remove_at_depth(timeline: &mut Vec<Frame>) {
     // 设置为空白帧 （即不显示任何内容）默认Id为0是空白帧
-    time_line.add_frame(Frame::new(CharacterId::default(), 0));
+    timeline.push(Frame::new(CharacterId::default(), 0));
 }
 
 fn clear_blank_frame(vector_animation: &mut VectorAnimation) {
     let clear = |animation: &mut Animation| {
         animation
-            .time_lines()
+            .timelines()
             .iter_mut()
-            .for_each(|(_, time_line)| time_line.frames.retain(|frame| frame.id != 0));
+            .for_each(|(_, timeline)| timeline.retain(|frame| frame.id != 0));
     };
     vector_animation.animations.values_mut().for_each(clear);
 
@@ -415,11 +396,10 @@ fn modify_at_depth(
     place_object: &Box<swf::PlaceObject>,
     current_frame: u16,
 ) {
-    let timeline = animation.insert_or_get_time_line(place_object.depth);
-    let mut frame = Frame::new(
-        timeline.frames.get(timeline.frames.len() - 1).unwrap().id,
-        current_frame,
-    );
+    let timeline = animation.insert_or_get_timeline(place_object.depth);
+    let mut frame = timeline.last_mut().unwrap().clone();
+    frame.place_frame = current_frame;
+    frame.duration = 0;
     apply_place_object(&mut frame, &place_object);
-    timeline.add_frame(frame);
+    timeline.push(frame);
 }
