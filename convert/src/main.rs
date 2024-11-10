@@ -167,13 +167,13 @@ fn main() -> anyhow::Result<()> {
     let encoding_for_version = SwfStr::encoding_for_version(swf.header.version());
 
     let mut shape_transform = BTreeMap::new();
-    generation_shape_image(
-        args.scale as f64,
-        shapes,
-        &mut shape_transform,
-        bitmaps,
-        &output,
-    )?;
+    // generation_shape_image(
+    //     args.scale as f64,
+    //     shapes,
+    //     &mut shape_transform,
+    //     bitmaps,
+    //     &output,
+    // )?;
     generation_animation(
         tags,
         shape_transform,

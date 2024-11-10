@@ -105,11 +105,21 @@ pub struct Matrix {
     pub tx: f32,
     pub ty: f32,
 }
-#[derive(Clone, Default, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ColorTransform {
     mult_color: [f32; 4],
     add_color: [f32; 4],
 }
+
+impl Default for ColorTransform {
+    fn default() -> Self {
+        Self {
+            mult_color: [1.0, 1.0, 1.0, 1.0],
+            add_color: [0.0, 0.0, 0.0, 0.0],
+        }
+    }
+}
+
 #[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub enum BlendMode {
     #[default]
@@ -342,6 +352,7 @@ fn apply_place_object(frame: &mut Frame, place_object: &swf::PlaceObject) {
     }
 
     if let Some(color_transform) = place_object.color_transform {
+        dbg!(color_transform);
         frame.transform.color_transform = ColorTransform {
             mult_color: color_transform.mult_rgba_normalized(),
             add_color: color_transform.add_rgba_normalized(),
