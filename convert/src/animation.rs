@@ -352,7 +352,6 @@ fn apply_place_object(frame: &mut Frame, place_object: &swf::PlaceObject) {
     }
 
     if let Some(color_transform) = place_object.color_transform {
-        dbg!(color_transform);
         frame.transform.color_transform = ColorTransform {
             mult_color: color_transform.mult_rgba_normalized(),
             add_color: color_transform.add_rgba_normalized(),
