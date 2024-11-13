@@ -523,18 +523,17 @@ fn generation_shape_image(
         }
         drop(render_pass);
         queue.submit(std::iter::once(encoder.finish()));
-
-        let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Output Buffer"),
-            size: size.width as u64 * size.height as u64 * 64,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
         let unpadded_byte_per_row = size.width * 4;
         let align = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
         let padded_byte_per_row_padding = (align - unpadded_byte_per_row % align) % align;
         let padded_byte_per_row = unpadded_byte_per_row + padded_byte_per_row_padding;
         // 将输出纹理提取到缓冲区中
+        let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Output Buffer"),
+            size: (padded_byte_per_row * size.height) as u64,
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         encoder.copy_texture_to_buffer(
             wgpu::ImageCopyTexture {
