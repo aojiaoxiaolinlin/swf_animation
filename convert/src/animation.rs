@@ -223,7 +223,6 @@ fn parse_animation(
                     );
                 }
                 swf::PlaceObjectAction::Modify => {
-                    dbg!(&place_object.depth, &animation_name, current_frame);
                     modify_at_depth(
                         vector_animation.animation(&animation_name),
                         &place_object,
@@ -260,8 +259,8 @@ fn parse_animation(
                     });
             }
             Tag::FrameLabel(frame_label) => {
-                // 此时当前动画结束，开始下一个动画，记录总帧数
                 if !vector_animation.animations.is_empty() {
+                    // 此时当前动画结束，开始下一个动画，记录总帧数
                     let animation = vector_animation.animation(&animation_name);
                     animation.set_total_frame(current_frame);
                     // 下一个标签定义的动画可能是在当前动画的基础上修改的，所以需要复制当前动画的最后一帧，这种情况出现在动画设计时没有做子动画，所有动画都在根时间轴上

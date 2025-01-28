@@ -1,6 +1,6 @@
 [package]
 name = "convert"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "A tool for extracting shapes from flash animations and converting animation data to JSON format."
 license = "MIT OR Apache-2.0"
