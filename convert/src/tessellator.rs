@@ -118,11 +118,9 @@ impl ShapeTessellator {
                     is_smoothed,
                     is_repeating,
                 } => {
-                    let bitmap_size = if let Some(compressed_bitmap) = bitmaps.get(id) {
-                        Some(compressed_bitmap.size())
-                    } else {
-                        None
-                    };
+                    let bitmap_size = bitmaps
+                        .get(id)
+                        .map(|compressed_bitmap| compressed_bitmap.size());
                     if let Some(bitmap_size) = bitmap_size {
                         (
                             DrawType::Bitmap(Bitmap {

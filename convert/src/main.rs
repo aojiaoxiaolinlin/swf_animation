@@ -190,7 +190,7 @@ fn generation_shape_image(
     shapes: Vec<&swf::Shape>,
     shape_transform: &mut BTreeMap<CharacterId, (f32, f32)>,
     bitmaps: HashMap<CharacterId, CompressedBitmap>,
-    output: &PathBuf,
+    output: &Path,
 ) -> anyhow::Result<()> {
     info!("开始绘制图形, 放大倍数: {}", scale);
     // 配置渲染器
@@ -646,7 +646,7 @@ fn generation_gradient(
         depth_or_array_layers: 1,
     };
     let texture = device.create_texture_with_data(
-        &queue,
+        queue,
         &wgpu::TextureDescriptor {
             label: Some("Shape"),
             size,
@@ -701,7 +701,7 @@ fn create_render_pipelines(
     });
 
     let color_render_pipeline = create_render_pipeline(
-        &device,
+        device,
         Some("Color Render Pipeline"),
         &color_shader,
         &render_pipeline_layout,
@@ -833,7 +833,7 @@ fn create_render_pipelines(
         push_constant_ranges: &[],
     });
     let bitmap_render_pipeline = create_render_pipeline(
-        &device,
+        device,
         Some("Bitmap Render Pipeline"),
         &bitmap_shader,
         &render_pipeline_layout,
@@ -856,7 +856,7 @@ fn create_render_pipeline(
 ) -> wgpu::RenderPipeline {
     device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label,
-        layout: Some(&render_pipeline_layout),
+        layout: Some(render_pipeline_layout),
         vertex: wgpu::VertexState {
             module: shader,
             entry_point: "vertex",
@@ -879,7 +879,7 @@ fn create_render_pipeline(
             alpha_to_coverage_enabled: false,
         },
         fragment: Some(wgpu::FragmentState {
-            module: &shader,
+            module: shader,
             entry_point: "fragment",
             compilation_options: Default::default(),
             targets: &[Some(wgpu::ColorTargetState {

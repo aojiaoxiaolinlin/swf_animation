@@ -4,7 +4,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     fs::File,
     io::{BufWriter, Write},
-    path::PathBuf,
+    path::Path,
 };
 
 use swf::{CharacterId, Depth, Encoding, Tag};
@@ -33,15 +33,13 @@ impl VectorAnimation {
         self.animations.insert(label.to_owned(), animation);
     }
     pub fn animation(&mut self, label: &String) -> &mut Animation {
-        self.animations
-            .entry(label.to_owned())
-            .or_insert(Animation::default())
+        self.animations.entry(label.to_owned()).or_default()
     }
     fn register_base_animation(&mut self, id: CharacterId, animation: Animation) {
         self.base_animations.insert(id, animation);
     }
 }
-#[derive(Default, Serialize, Deserialize, Debug)]
+#[derive(Default, Serialize, Deserialize, Debug, Clone)]
 pub struct Animation {
     timelines: BTreeMap<Depth, Vec<Frame>>,
     total_frames: u16,
@@ -54,7 +52,7 @@ impl Animation {
         self.timelines.get_mut(&depth).unwrap()
     }
     fn insert_or_get_timeline(&mut self, depth: Depth) -> &mut Vec<Frame> {
-        self.timelines.entry(depth).or_insert_with(|| Vec::new())
+        self.timelines.entry(depth).or_default()
     }
     fn set_total_frame(&mut self, total_frame: u16) {
         self.total_frames = total_frame;
@@ -165,7 +163,7 @@ pub fn generation_animation(
     tags: Vec<Tag>,
     shape_transform: BTreeMap<CharacterId, (f32, f32)>,
     file_name: &str,
-    output: &PathBuf,
+    output: &Path,
     frame_rate: u16,
     encoding_for_version: &'static Encoding,
 ) -> anyhow::Result<()> {
@@ -175,7 +173,7 @@ pub fn generation_animation(
     vector_animation.shape_transform = shape_transform;
     tags.iter().for_each(|tag| {
         if let Tag::DefineSprite(sprite) = tag {
-            parse_sprite_animation(&mut vector_animation, sprite);
+            parse_sprite_animation_as_base_animation(&mut vector_animation, sprite);
         }
     });
 
@@ -185,7 +183,7 @@ pub fn generation_animation(
     clear_blank_frame(&mut vector_animation);
     // 写入animation.json文件
     let writer = BufWriter::new(File::create(
-        output.join(format!("{}.json", file_name.first().unwrap().to_string())),
+        output.join(format!("{}.json", file_name.first().unwrap())),
     )?);
     // 二进制格式写入animation.an文件
     serde_json::to_writer_pretty(writer, &vector_animation)?;
@@ -213,7 +211,7 @@ fn parse_animation(
             Tag::PlaceObject(place_object) => match place_object.action {
                 swf::PlaceObjectAction::Place(id) => {
                     //  保证第一帧有标签区分不同的动画，如果没有设置则视为只有一个动画，将其命名为default
-                    if &animation_name == "" {
+                    if animation_name.is_empty() {
                         animation_name = String::from("default");
                         vector_animation.add_animation(&animation_name, Animation::default());
                     }
@@ -225,6 +223,7 @@ fn parse_animation(
                     );
                 }
                 swf::PlaceObjectAction::Modify => {
+                    dbg!(&place_object.depth, &animation_name, current_frame);
                     modify_at_depth(
                         vector_animation.animation(&animation_name),
                         &place_object,
@@ -263,13 +262,28 @@ fn parse_animation(
             Tag::FrameLabel(frame_label) => {
                 // 此时当前动画结束，开始下一个动画，记录总帧数
                 if !vector_animation.animations.is_empty() {
-                    vector_animation
-                        .animation(&animation_name)
-                        .set_total_frame(current_frame);
+                    let animation = vector_animation.animation(&animation_name);
+                    animation.set_total_frame(current_frame);
+                    // 下一个标签定义的动画可能是在当前动画的基础上修改的，所以需要复制当前动画的最后一帧，这种情况出现在动画设计时没有做子动画，所有动画都在根时间轴上
+                    let mut new_animation = animation.clone();
+                    new_animation
+                        .timelines
+                        .iter_mut()
+                        .for_each(|(_, timeline)| {
+                            let mut last_frame = timeline.last().unwrap().clone();
+                            timeline.clear();
+                            last_frame.duration = 0;
+                            last_frame.place_frame = 0;
+                            timeline.push(last_frame);
+                        });
+                    current_frame = 0;
+                    animation_name = frame_label.label.to_string_lossy(encoding_for_version);
+                    vector_animation.add_animation(&animation_name, new_animation);
+                } else {
+                    current_frame = 0;
+                    animation_name = frame_label.label.to_string_lossy(encoding_for_version);
+                    vector_animation.add_animation(&animation_name, Animation::default());
                 }
-                current_frame = 0;
-                animation_name = frame_label.label.to_string_lossy(encoding_for_version);
-                vector_animation.add_animation(&animation_name, Animation::default());
             }
             _ => {
                 continue;
@@ -282,7 +296,11 @@ fn parse_animation(
         .set_total_frame(current_frame);
 }
 
-fn parse_sprite_animation(vector_animation: &mut VectorAnimation, sprite: &swf::Sprite) {
+/// 解析DefineSprite标签动画，这个动画被解析为基础动画
+fn parse_sprite_animation_as_base_animation(
+    vector_animation: &mut VectorAnimation,
+    sprite: &swf::Sprite,
+) {
     let mut current_frame = 0;
     let mut animation = Animation::default();
     animation.set_total_frame(sprite.num_frames);
@@ -324,7 +342,7 @@ fn parse_sprite_animation(vector_animation: &mut VectorAnimation, sprite: &swf::
 
 fn add_timeline(
     animation: &mut Animation,
-    place_object: &Box<swf::PlaceObject>,
+    place_object: &swf::PlaceObject,
     id: CharacterId,
     current_frame: u16,
 ) {
@@ -369,7 +387,7 @@ fn apply_place_object(frame: &mut Frame, place_object: &swf::PlaceObject) {
 
 fn replace_at_depth(
     timeline: &mut Vec<Frame>,
-    place_object: &Box<swf::PlaceObject>,
+    place_object: &swf::PlaceObject,
     id: CharacterId,
     current_frame: u16,
 ) {
@@ -377,7 +395,7 @@ fn replace_at_depth(
     frame.id = id;
     frame.place_frame = current_frame;
     frame.duration = 0;
-    apply_place_object(&mut frame, &place_object);
+    apply_place_object(&mut frame, place_object);
     timeline.push(frame);
 }
 
@@ -401,15 +419,11 @@ fn clear_blank_frame(vector_animation: &mut VectorAnimation) {
         .for_each(clear)
 }
 
-fn modify_at_depth(
-    animation: &mut Animation,
-    place_object: &Box<swf::PlaceObject>,
-    current_frame: u16,
-) {
+fn modify_at_depth(animation: &mut Animation, place_object: &swf::PlaceObject, current_frame: u16) {
     let timeline = animation.insert_or_get_timeline(place_object.depth);
     let mut frame = timeline.last_mut().unwrap().clone();
     frame.place_frame = current_frame;
     frame.duration = 0;
-    apply_place_object(&mut frame, &place_object);
+    apply_place_object(&mut frame, place_object);
     timeline.push(frame);
 }
