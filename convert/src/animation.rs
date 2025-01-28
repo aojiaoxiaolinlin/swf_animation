@@ -262,7 +262,7 @@ fn parse_animation(
             }
             Tag::FrameLabel(frame_label) => {
                 // 此时当前动画结束，开始下一个动画，记录总帧数
-                if vector_animation.animations.len() > 0 {
+                if !vector_animation.animations.is_empty() {
                     vector_animation
                         .animation(&animation_name)
                         .set_total_frame(current_frame);
