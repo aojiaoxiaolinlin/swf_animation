@@ -1,5 +1,5 @@
 [workspace]
-members = ["convert"]
+members = [ "render","swf_to_json"]
 resolver = "2"
 
 [workspace.dependencies]

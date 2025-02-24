@@ -401,29 +401,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "convert"
-version = "0.1.1"
-dependencies = [
- "anyhow",
- "bytemuck",
- "clap",
- "futures",
- "glam",
- "image",
- "indexmap",
- "indicatif",
- "lyon_tessellation",
- "rmp-serde",
- "ruffle_render",
- "serde",
- "serde_json",
- "swf",
- "tracing",
- "tracing-subscriber",
- "wgpu",
-]
-
-[[package]]
 name = "core-foundation"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1750,6 +1727,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
+name = "render"
+version = "0.1.0"
+
+[[package]]
 name = "renderdoc-sys"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1993,6 +1974,29 @@ dependencies = [
  "num-derive",
  "num-traits",
  "simple_asn1",
+]
+
+[[package]]
+name = "swf_to_json"
+version = "0.1.1"
+dependencies = [
+ "anyhow",
+ "bytemuck",
+ "clap",
+ "futures",
+ "glam",
+ "image",
+ "indexmap",
+ "indicatif",
+ "lyon_tessellation",
+ "rmp-serde",
+ "ruffle_render",
+ "serde",
+ "serde_json",
+ "swf",
+ "tracing",
+ "tracing-subscriber",
+ "wgpu",
 ]
 
 [[package]]

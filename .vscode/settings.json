@@ -27,6 +27,7 @@
     "repr",
     "rngs",
     "Seedable",
+    "serde",
     "showall",
     "Srgb",
     "tessellator",
