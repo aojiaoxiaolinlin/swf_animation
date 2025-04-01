@@ -1,6 +1,4 @@
-# SWF Animation Runtime
-
-## To make better use of SWF resources
+# To make better use of SWF resources
 
 一个将`Adobe Animate` / `Flash`动画转成JSON数据的工具。
 
