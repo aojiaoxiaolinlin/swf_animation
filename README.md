@@ -1,4 +1,4 @@
-# To make better use of SWF resources
+# To Make Better Use Of SWF Resources
 
 一个将`Adobe Animate` / `Flash`动画转成JSON数据的工具。
 
