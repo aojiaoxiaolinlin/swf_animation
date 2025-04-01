@@ -2,6 +2,8 @@
 
 ## To make better use of SWF resources
 
+一个将`Adobe Animate` / `Flash`动画转成JSON数据的工具。
+
 ## SWF 动画运行数据（JSON）
 
 1. 用法:
@@ -9,22 +11,22 @@
 - 自己编译：
 
    ```bash
-      cargo run --release --package=convert  D:\Code\Rust\swf_animation\core\tests\swfs\spirit2159src.swf
+      cargo run --release --package=swf_to_json  D:\Code\Rust\swf_animation\core\tests\swfs\spirit2159src.swf
       // 或者指定放大倍数
-      cargo run --release --package=convert  D:\Code\Rust\swf_animation\core\tests\swfs\spirit2159src.swf --scale 2.0
+      cargo run --release --package=swf_to_json  D:\Code\Rust\swf_animation\core\tests\swfs\spirit2159src.swf --scale 2.0
    ```
 
 - 编译完成
   
    ```bash
-      convert "D:\Code\Rust\swf_animation\core\tests\swfs\spirit2159src.swf"
+      swf_to_json "D:\Code\Rust\swf_animation\core\tests\swfs\spirit2159src.swf"
       // 或者指定放大倍数
-      convert "D:\Code\Rust\swf_animation\core\tests\swfs\spirit2159src.swf" --scale 2.0
+      swf_to_json "D:\Code\Rust\swf_animation\core\tests\swfs\spirit2159src.swf" --scale 2.0
    ```
 
 > 可用第三方工具，如`Texture Packer`等工具打包成`atlas`，然后使用`SpriteSheet`加载。
 
-1. 动画文件 animation.json 的格式如下:
+1. 动画文件 animation.json 的格式**暂定**如下:
 
    ```json
    {
