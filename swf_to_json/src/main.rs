@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
     env,
     fs::File,
@@ -15,7 +16,7 @@ use render::{
     mesh::{GradientUniform, VertexColor, VertexPosition},
 };
 use ruffle_render::tessellator::{DrawType, Gradient};
-use swf::{CharacterId, GradientInterpolation, SwfStr};
+use swf::{CharacterId, DefineBitsLossless, GradientInterpolation, SwfStr};
 use tessellator::ShapeTessellator;
 use tracing::{error, info};
 use tracing_subscriber::{
@@ -121,6 +122,19 @@ fn main() -> anyhow::Result<()> {
                         width,
                         height,
                     },
+                );
+            }
+            swf::Tag::DefineBitsLossless(bit_loss_less) => {
+                bitmaps.insert(
+                    bit_loss_less.id,
+                    CompressedBitmap::Lossless(DefineBitsLossless {
+                        version: bit_loss_less.version,
+                        id: bit_loss_less.id,
+                        format: bit_loss_less.format,
+                        width: bit_loss_less.width,
+                        height: bit_loss_less.height,
+                        data: Cow::Owned(bit_loss_less.data.clone().into_owned()),
+                    }),
                 );
             }
             _ => {
@@ -291,17 +305,6 @@ fn generation_shape_image(
                 contents: bytemuck::cast_slice(&indices),
                 usage: wgpu::BufferUsages::INDEX,
             });
-
-            // let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            //     label: Some("采样器"),
-            //     address_mode_u: wgpu::AddressMode::ClampToEdge,
-            //     address_mode_v: wgpu::AddressMode::ClampToEdge,
-            //     address_mode_w: wgpu::AddressMode::ClampToEdge,
-            //     mag_filter: wgpu::FilterMode::Linear,
-            //     min_filter: wgpu::FilterMode::Nearest,
-            //     mipmap_filter: wgpu::FilterMode::Nearest,
-            //     ..Default::default()
-            // });
             let sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
             match draw.draw_type {
                 DrawType::Color => {
