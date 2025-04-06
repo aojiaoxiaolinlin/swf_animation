@@ -1,8 +1,15 @@
 [workspace]
-members = [ "render","swf_to_json"]
+members = ["render", "runtime", "swf_to_json"]
 resolver = "2"
 
 [workspace.dependencies]
 anyhow = "1.0"
 tracing = "0.1"
+serde_json = "1.0"
+enum-map = "2.7.3"
+num-derive = "0.4"
+num-traits = "0.2"
+
+serde = { version = "1.0", features = ["derive"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+glam = { version = "0.30", features = ["bytemuck"] }

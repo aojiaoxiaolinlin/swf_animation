@@ -24,7 +24,7 @@ use tracing_subscriber::{
     layer::SubscriberExt,
     util::SubscriberInitExt,
 };
-use wgpu::{util::DeviceExt, VertexBufferLayout};
+use wgpu::{VertexBufferLayout, util::DeviceExt};
 mod animation;
 pub mod bitmap;
 mod render;

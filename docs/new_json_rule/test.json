@@ -1,0 +1,2242 @@
+{
+  "meta": {
+    "frame_rate": 30.0,
+    "frames": 20,
+    "version": "0.1.0"
+  },
+  "definitions": {
+    "84": {
+      "MovieClip": {
+        "id": 84,
+        "duration": 1.2333333,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 1.2,
+                "resource_id": 83
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.2,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "2": {
+            "resources": [
+              {
+                "time": 1.1666666,
+                "resource_id": 82
+              },
+              {
+                "time": 1.2,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1666666,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "185": {
+      "MovieClip": {
+        "id": 185,
+        "duration": 3.5,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 1.2,
+                "resource_id": 184
+              },
+              {
+                "time": 1.2333333,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.2,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "2": {
+            "resources": [
+              {
+                "time": 1.1666666,
+                "resource_id": 183
+              },
+              {
+                "time": 1.2,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1666666,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "6": {
+            "resources": [
+              {
+                "time": 1.0333333,
+                "resource_id": 179
+              },
+              {
+                "time": 1.0666667,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.0333333,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "275": {
+      "MovieClip": {
+        "id": 275,
+        "duration": 0.033333335,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 0.0,
+                "resource_id": 100
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.0,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "279": {
+      "MovieClip": {
+        "id": 279,
+        "duration": 1.2333333,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 1.2,
+                "resource_id": 278
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.2,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "2": {
+            "resources": [
+              {
+                "time": 1.1,
+                "resource_id": 168
+              },
+              {
+                "time": 1.1333333,
+                "resource_id": 170
+              },
+              {
+                "time": 1.1666666,
+                "resource_id": 172
+              },
+              {
+                "time": 1.2,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "3": {
+            "resources": [
+              {
+                "time": 0.8666667,
+                "resource_id": 154
+              },
+              {
+                "time": 0.9,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.8666667,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "22": {
+      "MovieClip": {
+        "id": 22,
+        "duration": 0.033333335,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 0.0,
+                "resource_id": 21
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.0,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "8": {
+      "MovieClip": {
+        "id": 8,
+        "duration": 0.033333335,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 0.0,
+                "resource_id": 7
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.0,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "19": {
+      "MovieClip": {
+        "id": 19,
+        "duration": 0.033333335,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 0.0,
+                "resource_id": 18
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.0,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "174": {
+      "MovieClip": {
+        "id": 174,
+        "duration": 1.2333333,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 0.0,
+                "resource_id": 100
+              },
+              {
+                "time": 1.2,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.0,
+                "a": 0.82917786,
+                "b": -0.45487976,
+                "c": 0.45487976,
+                "d": 0.82917786,
+                "tx": -5.4,
+                "ty": 0.45
+              }
+            ]
+          },
+          "2": {
+            "resources": [
+              {
+                "time": 1.1333333,
+                "resource_id": 169
+              },
+              {
+                "time": 1.1666666,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1333333,
+                "a": 0.82917786,
+                "b": -0.45487976,
+                "c": 0.45487976,
+                "d": 0.82917786,
+                "tx": -4.45,
+                "ty": -8.9
+              }
+            ]
+          },
+          "3": {
+            "resources": [
+              {
+                "time": 1.1666666,
+                "resource_id": 171
+              },
+              {
+                "time": 1.2,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1666666,
+                "a": 0.82917786,
+                "b": -0.45487976,
+                "c": 0.45487976,
+                "d": 0.82917786,
+                "tx": -4.45,
+                "ty": -8.9
+              }
+            ]
+          },
+          "4": {
+            "resources": [
+              {
+                "time": 1.2,
+                "resource_id": 173
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.2,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "5": {
+            "resources": [
+              {
+                "time": 1.1666666,
+                "resource_id": 172
+              },
+              {
+                "time": 1.2,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1666666,
+                "a": 0.82917786,
+                "b": -0.45487976,
+                "c": 0.45487976,
+                "d": 0.82917786,
+                "tx": -1.55,
+                "ty": 5.3
+              }
+            ]
+          }
+        }
+      }
+    },
+    "197": {
+      "MovieClip": {
+        "id": 197,
+        "duration": 3.6666667,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 1.2,
+                "resource_id": 196
+              },
+              {
+                "time": 1.2333333,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.2,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "2": {
+            "resources": [
+              {
+                "time": 1.0666667,
+                "resource_id": 192
+              },
+              {
+                "time": 1.1,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.0666667,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "4": {
+            "resources": [
+              {
+                "time": 1.1666666,
+                "resource_id": 195
+              },
+              {
+                "time": 1.2,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1666666,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "6": {
+            "resources": [
+              {
+                "time": 1.0333333,
+                "resource_id": 191
+              },
+              {
+                "time": 1.0666667,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.0333333,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "211": {
+      "MovieClip": {
+        "id": 211,
+        "duration": 0.033333335,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 0.0,
+                "resource_id": 210
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.0,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "237": {
+      "MovieClip": {
+        "id": 237,
+        "duration": 1.2333333,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 1.2,
+                "resource_id": 236
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.2,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "2": {
+            "resources": [
+              {
+                "time": 1.1666666,
+                "resource_id": 235
+              },
+              {
+                "time": 1.2,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1666666,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "3": {
+            "resources": [
+              {
+                "time": 0.5,
+                "resource_id": 216
+              },
+              {
+                "time": 0.53333336,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.5,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "4": {
+            "resources": [
+              {
+                "time": 1.1333333,
+                "resource_id": 234
+              },
+              {
+                "time": 1.1666666,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1333333,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "5": {
+            "resources": [
+              {
+                "time": 1.0333333,
+                "resource_id": 231
+              },
+              {
+                "time": 1.0666667,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.0333333,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "6": {
+            "resources": [
+              {
+                "time": 0.93333334,
+                "resource_id": 228
+              },
+              {
+                "time": 0.96666664,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.93333334,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "8": {
+            "resources": [
+              {
+                "time": 1.1,
+                "resource_id": 233
+              },
+              {
+                "time": 1.1333333,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "10": {
+            "resources": [
+              {
+                "time": 0.36666667,
+                "resource_id": 211
+              },
+              {
+                "time": 0.4,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.36666667,
+                "a": -0.19953918,
+                "b": 0.000015258789,
+                "c": 0.000015258789,
+                "d": 0.19955444,
+                "tx": 12.3,
+                "ty": -7.55
+              }
+            ]
+          },
+          "12": {
+            "resources": [
+              {
+                "time": 0.36666667,
+                "resource_id": 212
+              },
+              {
+                "time": 0.4,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.36666667,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "277": {
+      "MovieClip": {
+        "id": 277,
+        "duration": 1.2333333,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 1.1333333,
+                "resource_id": 169
+              },
+              {
+                "time": 1.1666666,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1333333,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "2": {
+            "resources": [
+              {
+                "time": 1.1666666,
+                "resource_id": 171
+              },
+              {
+                "time": 1.2,
+                "resource_id": 276
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1666666,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "349": {
+      "MovieClip": {
+        "id": 349,
+        "duration": 1.2333333,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 0.96666664,
+                "resource_id": 342
+              },
+              {
+                "time": 1.0,
+                "resource_id": 343
+              },
+              {
+                "time": 1.0333333,
+                "resource_id": 344
+              },
+              {
+                "time": 1.0666667,
+                "resource_id": 345
+              },
+              {
+                "time": 1.1,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.96666664,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "2": {
+            "resources": [
+              {
+                "time": 1.1666666,
+                "resource_id": 347
+              },
+              {
+                "time": 1.2,
+                "resource_id": 348
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1666666,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "3": {
+            "resources": [
+              {
+                "time": 0.93333334,
+                "resource_id": 341
+              },
+              {
+                "time": 0.96666664,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.93333334,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "11": {
+            "resources": [
+              {
+                "time": 1.1,
+                "resource_id": 346
+              },
+              {
+                "time": 1.1333333,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "99": {
+      "MovieClip": {
+        "id": 99,
+        "duration": 1.2333333,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 1.2,
+                "resource_id": 98
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.2,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "2": {
+            "resources": [
+              {
+                "time": 1.1666666,
+                "resource_id": 97
+              },
+              {
+                "time": 1.2,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1666666,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "68": {
+      "MovieClip": {
+        "id": 68,
+        "duration": 0.6666667,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 0.0,
+                "resource_id": 49
+              },
+              {
+                "time": 0.06666667,
+                "resource_id": 51
+              },
+              {
+                "time": 0.13333334,
+                "resource_id": 53
+              },
+              {
+                "time": 0.2,
+                "resource_id": 55
+              },
+              {
+                "time": 0.26666668,
+                "resource_id": 57
+              },
+              {
+                "time": 0.33333334,
+                "resource_id": 59
+              },
+              {
+                "time": 0.4,
+                "resource_id": 61
+              },
+              {
+                "time": 0.46666667,
+                "resource_id": 63
+              },
+              {
+                "time": 0.53333336,
+                "resource_id": 65
+              },
+              {
+                "time": 0.6,
+                "resource_id": 67
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.0,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "274": {
+      "MovieClip": {
+        "id": 274,
+        "duration": 1.2333333,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 1.0666667,
+                "resource_id": 269
+              },
+              {
+                "time": 1.1,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.0666667,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "2": {
+            "resources": [
+              {
+                "time": 1.2,
+                "resource_id": 273
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.2,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "3": {
+            "resources": [
+              {
+                "time": 0.73333335,
+                "resource_id": 259
+              },
+              {
+                "time": 0.76666665,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.73333335,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "4": {
+            "resources": [
+              {
+                "time": 0.96666664,
+                "resource_id": 266
+              },
+              {
+                "time": 1.0,
+                "resource_id": 267
+              },
+              {
+                "time": 1.0333333,
+                "resource_id": 268
+              },
+              {
+                "time": 1.0666667,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.96666664,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "5": {
+            "resources": [
+              {
+                "time": 0.6,
+                "resource_id": 255
+              },
+              {
+                "time": 0.6333333,
+                "resource_id": 256
+              },
+              {
+                "time": 0.6666667,
+                "resource_id": 257
+              },
+              {
+                "time": 0.7,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.6,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "6": {
+            "resources": [
+              {
+                "time": 1.1666666,
+                "resource_id": 272
+              },
+              {
+                "time": 1.2,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1666666,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "9": {
+            "resources": [
+              {
+                "time": 0.8,
+                "resource_id": 261
+              },
+              {
+                "time": 0.8333333,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.8,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "10": {
+            "resources": [
+              {
+                "time": 0.23333333,
+                "resource_id": 244
+              },
+              {
+                "time": 0.26666668,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.23333333,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "11": {
+            "resources": [
+              {
+                "time": 0.4,
+                "resource_id": 249
+              },
+              {
+                "time": 0.43333334,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.4,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        }
+      }
+    },
+    "315": {
+      "MovieClip": {
+        "id": 315,
+        "duration": 1.2,
+        "time_line": {
+          "2": {
+            "resources": [
+              {
+                "time": 1.0333333,
+                "resource_id": 310
+              },
+              {
+                "time": 1.0666667,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.0333333,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "3": {
+            "resources": [
+              {
+                "time": 1.1,
+                "resource_id": 312
+              },
+              {
+                "time": 1.1333333,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "4": {
+            "resources": [
+              {
+                "time": 1.1666666,
+                "resource_id": 314
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1666666,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "5": {
+            "resources": [
+              {
+                "time": 0.46666667,
+                "resource_id": 294
+              },
+              {
+                "time": 0.5,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.46666667,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "8": {
+            "resources": [
+              {
+                "time": 0.1,
+                "resource_id": 283
+              },
+              {
+                "time": 0.13333334,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.1,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "9": {
+            "resources": [
+              {
+                "time": 0.93333334,
+                "resource_id": 307
+              },
+              {
+                "time": 0.96666664,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.93333334,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "10": {
+            "resources": [
+              {
+                "time": 0.9,
+                "resource_id": 306
+              },
+              {
+                "time": 0.93333334,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.9,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "11": {
+            "resources": [
+              {
+                "time": 1.1333333,
+                "resource_id": 313
+              },
+              {
+                "time": 1.1666666,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1333333,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "14": {
+            "resources": [
+              {
+                "time": 0.5,
+                "resource_id": 295
+              },
+              {
+                "time": 0.53333336,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.5,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "16": {
+            "resources": [
+              {
+                "time": 1.0,
+                "resource_id": 309
+              },
+              {
+                "time": 1.0333333,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.0,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "22": {
+            "resources": [
+              {
+                "time": 1.0666667,
+                "resource_id": 311
+              },
+              {
+                "time": 1.1,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.0666667,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "27": {
+            "resources": [
+              {
+                "time": 0.2,
+                "resource_id": 286
+              },
+              {
+                "time": 0.23333333,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.2,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          }
+        },
+        "skin_frames": {
+          "6": 5,
+          "1": 0,
+          "2": 1,
+          "4": 3,
+          "7": 6,
+          "3": 2,
+          "8": 7,
+          "5": 4
+        },
+        "default_skin": "1"
+      }
+    },
+    "69": {
+      "MovieClip": {
+        "id": 69,
+        "duration": 1.2666667,
+        "time_line": {
+          "1": {
+            "resources": [
+              {
+                "time": 1.2,
+                "resource_id": 46
+              },
+              {
+                "time": 1.2333333,
+                "resource_id": 47
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.2,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "2": {
+            "resources": [
+              {
+                "time": 1.2333333,
+                "resource_id": 68
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.2333333,
+                "a": 0.59542847,
+                "b": 1.6986389,
+                "c": -1.6986389,
+                "d": 0.59542847,
+                "tx": 9.0,
+                "ty": -3.0
+              }
+            ]
+          },
+          "3": {
+            "resources": [
+              {
+                "time": 0.8333333,
+                "resource_id": 35
+              },
+              {
+                "time": 0.8666667,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.8333333,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "4": {
+            "resources": [
+              {
+                "time": 0.4,
+                "resource_id": 19
+              },
+              {
+                "time": 0.43333334,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.4,
+                "a": -0.35450745,
+                "b": -0.9345093,
+                "c": -0.9345093,
+                "d": 0.35450745,
+                "tx": 45.85,
+                "ty": -34.2
+              }
+            ]
+          },
+          "5": {
+            "resources": [
+              {
+                "time": 0.43333334,
+                "resource_id": 22
+              },
+              {
+                "time": 0.46666667,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.43333334,
+                "a": -0.2775116,
+                "b": -0.7380676,
+                "c": -0.73838806,
+                "d": 0.27716064,
+                "tx": 51.2,
+                "ty": 12.9
+              }
+            ]
+          },
+          "6": {
+            "resources": [
+              {
+                "time": 0.96666664,
+                "resource_id": 39
+              },
+              {
+                "time": 1.0,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.96666664,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "7": {
+            "resources": [
+              {
+                "time": 0.43333334,
+                "resource_id": 22
+              },
+              {
+                "time": 0.46666667,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.43333334,
+                "a": 0.27734375,
+                "b": 0.73835754,
+                "c": -0.73817444,
+                "d": 0.27775574,
+                "tx": 30.25,
+                "ty": -43.7
+              }
+            ]
+          },
+          "8": {
+            "resources": [
+              {
+                "time": 1.1,
+                "resource_id": 43
+              },
+              {
+                "time": 1.1333333,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.1,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "9": {
+            "resources": [
+              {
+                "time": 1.0333333,
+                "resource_id": 41
+              },
+              {
+                "time": 1.0666667,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 1.0333333,
+                "a": 1.0,
+                "b": 0.0,
+                "c": 0.0,
+                "d": 1.0,
+                "tx": 0.0,
+                "ty": 0.0
+              }
+            ]
+          },
+          "10": {
+            "resources": [
+              {
+                "time": 0.43333334,
+                "resource_id": 22
+              },
+              {
+                "time": 0.46666667,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.43333334,
+                "a": -0.9739227,
+                "b": 0.36601257,
+                "c": 0.36584473,
+                "d": 0.9739685,
+                "tx": 95.75,
+                "ty": -26.7
+              }
+            ]
+          },
+          "12": {
+            "resources": [
+              {
+                "time": 0.43333334,
+                "resource_id": 22
+              },
+              {
+                "time": 0.46666667,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.43333334,
+                "a": 0.1807251,
+                "b": 0.4811859,
+                "c": -0.4810791,
+                "d": 0.18089294,
+                "tx": -57.25,
+                "ty": -9.15
+              }
+            ]
+          },
+          "14": {
+            "resources": [
+              {
+                "time": 0.43333334,
+                "resource_id": 22
+              },
+              {
+                "time": 0.46666667,
+                "resource_id": 0
+              }
+            ],
+            "transforms": [
+              {
+                "time": 0.43333334,
+                "a": -0.3881073,
+                "b": -1.0325623,
+                "c": -1.0328369,
+                "d": 0.38842773,
+                "tx": 79.45,
+                "ty": 38.2
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "animations": {
+    "default": {
+      "name": "default",
+      "duration": 0.23333333,
+      "time_line": {
+        "1": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 69
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": -0.5856018,
+              "b": -0.8105316,
+              "c": 0.8105316,
+              "d": -0.5856018,
+              "tx": 279.75,
+              "ty": 196.25
+            },
+            {
+              "time": 0.1,
+              "a": -0.7755432,
+              "b": -0.63124084,
+              "c": 0.63124084,
+              "d": -0.7755432,
+              "tx": 269.65,
+              "ty": 194.35
+            }
+          ]
+        },
+        "16": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 84
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": 0.98565674,
+              "b": -0.16870117,
+              "c": -0.07077026,
+              "d": 0.99438477,
+              "tx": 290.95,
+              "ty": 246.0
+            },
+            {
+              "time": 0.1,
+              "a": 0.96398926,
+              "b": -0.26583862,
+              "c": -0.036987305,
+              "d": 1.0145874,
+              "tx": 290.05,
+              "ty": 244.2
+            }
+          ]
+        },
+        "19": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 99
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": 1.0220947,
+              "b": -0.06149292,
+              "c": 0.23995972,
+              "d": 0.96476746,
+              "tx": 278.45,
+              "ty": 250.05
+            },
+            {
+              "time": 0.1,
+              "a": 1.0184937,
+              "b": -0.10549927,
+              "c": 0.28134155,
+              "d": 0.9535217,
+              "tx": 278.05,
+              "ty": 249.85
+            }
+          ]
+        },
+        "22": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 174
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": 0.57984924,
+              "b": 0.814209,
+              "c": -0.814209,
+              "d": 0.57984924,
+              "tx": 269.55,
+              "ty": 223.05
+            },
+            {
+              "time": 0.1,
+              "a": 0.613739,
+              "b": 0.7889862,
+              "c": -0.7889862,
+              "d": 0.613739,
+              "tx": 266.35,
+              "ty": 223.9
+            }
+          ]
+        },
+        "28": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 185
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": 0.9552002,
+              "b": -0.2959442,
+              "c": 0.2959442,
+              "d": 0.9552002,
+              "tx": 295.85,
+              "ty": 238.0
+            },
+            {
+              "time": 0.1,
+              "a": 0.9415283,
+              "b": -0.3368683,
+              "c": 0.3368683,
+              "d": 0.9415283,
+              "tx": 294.9,
+              "ty": 237.0
+            }
+          ]
+        },
+        "35": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 197
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": 0.9961548,
+              "b": -0.08757019,
+              "c": 0.017105103,
+              "d": 1.0050354,
+              "tx": 278.85,
+              "ty": 243.75
+            },
+            {
+              "time": 0.1,
+              "a": 0.9914398,
+              "b": -0.13044739,
+              "c": 0.060424805,
+              "d": 1.0033569,
+              "tx": 278.2,
+              "ty": 243.55
+            }
+          ]
+        },
+        "42": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 237
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": 0.9375305,
+              "b": -0.34683228,
+              "c": 0.34683228,
+              "d": 0.9375305,
+              "tx": 276.75,
+              "ty": 220.25
+            },
+            {
+              "time": 0.1,
+              "a": 0.89282227,
+              "b": -0.4495697,
+              "c": 0.4495697,
+              "d": 0.89282227,
+              "tx": 274.05,
+              "ty": 220.65
+            }
+          ]
+        },
+        "55": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 274
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": 0.97494507,
+              "b": -0.2217102,
+              "c": 0.2217102,
+              "d": 0.97494507,
+              "tx": 281.8,
+              "ty": 235.15
+            },
+            {
+              "time": 0.1,
+              "a": 0.9440155,
+              "b": -0.329422,
+              "c": 0.329422,
+              "d": 0.9440155,
+              "tx": 280.8,
+              "ty": 234.85
+            }
+          ]
+        },
+        "67": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 275
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": -0.13293457,
+              "b": -0.99082947,
+              "c": 0.99082947,
+              "d": -0.13293457,
+              "tx": 289.3,
+              "ty": 220.05
+            },
+            {
+              "time": 0.1,
+              "a": -0.5513458,
+              "b": -0.8339386,
+              "c": 0.8339386,
+              "d": -0.5513458,
+              "tx": 286.15,
+              "ty": 213.8
+            }
+          ]
+        },
+        "69": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 277
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": -0.13293457,
+              "b": -0.99082947,
+              "c": 0.99082947,
+              "d": -0.13293457,
+              "tx": 280.55,
+              "ty": 215.55
+            },
+            {
+              "time": 0.1,
+              "a": -0.5513458,
+              "b": -0.8339386,
+              "c": 0.8339386,
+              "d": -0.5513458,
+              "tx": 276.2,
+              "ty": 213.6
+            }
+          ]
+        },
+        "72": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 279
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": -0.13293457,
+              "b": -0.99082947,
+              "c": 0.99082947,
+              "d": -0.13293457,
+              "tx": 295.6,
+              "ty": 218.1
+            },
+            {
+              "time": 0.1,
+              "a": -0.5513458,
+              "b": -0.8339386,
+              "c": 0.8339386,
+              "d": -0.5513458,
+              "tx": 290.9,
+              "ty": 209.35
+            }
+          ]
+        },
+        "76": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 315
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": 0.9335327,
+              "b": -0.35849,
+              "c": 0.35849,
+              "d": 0.9335327,
+              "tx": 269.15,
+              "ty": 189.6
+            },
+            {
+              "time": 0.1,
+              "a": 0.84432983,
+              "b": -0.5358124,
+              "c": 0.5358124,
+              "d": 0.84432983,
+              "tx": 261.4,
+              "ty": 191.65
+            }
+          ]
+        },
+        "104": {
+          "resources": [
+            {
+              "time": 0.0,
+              "resource_id": 349
+            }
+          ],
+          "transforms": [
+            {
+              "time": 0.0,
+              "a": 0.97250366,
+              "b": -0.23283386,
+              "c": 0.23283386,
+              "d": 0.97250366,
+              "tx": 270.8,
+              "ty": 210.2
+            },
+            {
+              "time": 0.1,
+              "a": 0.9122925,
+              "b": -0.4094391,
+              "c": 0.4094391,
+              "d": 0.9122925,
+              "tx": 264.6,
+              "ty": 212.25
+            }
+          ]
+        }
+      }
+    },
+    "event_attack": {
+      "name": "event_attack",
+      "duration": 0.4,
+      "time_line": {},
+      "events": [
+        {
+          "time": 0.23333333,
+          "name": "attack"
+        }
+      ]
+    }
+  }
+}
