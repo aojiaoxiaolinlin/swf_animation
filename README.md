@@ -1,4 +1,4 @@
-# To make better use of SWF resources
+# To Make Better Use Of SWF Resources
 
 ## 目标
 
