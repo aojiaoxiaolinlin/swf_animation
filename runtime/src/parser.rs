@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, HashMap},
     env,
     fs::File,
@@ -6,11 +7,19 @@ use std::{
 };
 
 use anyhow::Result;
+use bitmap::CompressedBitmap;
+use decode::decode_define_bits_jpeg_dimensions;
+use glam::Mat4;
 use serde::{Deserialize, Serialize};
-use swf::{CharacterId, Depth, Encoding, PlaceObject, SwfStr, Tag};
+use swf::{CharacterId, DefineBitsLossless, Depth, Encoding, PlaceObject, Shape, SwfStr, Tag};
+use swf_derive::KeyFrame;
 use types::{BlendMode, Filter};
 
-mod types;
+pub mod bitmap;
+mod decode;
+pub mod parse_shape;
+pub mod types;
+
 /// 动画版本号
 /// 这里的版本号是从Cargo.toml中获取的，表示当前动画解析器的版本
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -33,15 +42,41 @@ impl Default for Meta {
     }
 }
 
+pub trait KeyFrame {
+    fn time(&self) -> f32;
+}
+
 #[derive(Default, Debug, Serialize, Deserialize)]
+pub struct Matrix {
+    // ScaleX
+    pub a: f32,
+    // SkewX
+    pub b: f32,
+    // SkewY
+    pub c: f32,
+    // ScaleY
+    pub d: f32,
+    // TranslateX
+    pub tx: f32,
+    // TranslateY
+    pub ty: f32,
+}
+
+impl Into<Mat4> for &Matrix {
+    fn into(self) -> Mat4 {
+        Mat4::from_cols_array_2d(&[
+            [self.a, self.b, 0.0, 0.0],
+            [self.c, self.d, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [self.tx, self.ty, 0.0, 1.0],
+        ])
+    }
+}
+
+#[derive(Default, Debug, Serialize, Deserialize, KeyFrame)]
 pub struct Transform {
     pub time: f32,
-    pub a: f32,
-    pub b: f32,
-    pub c: f32,
-    pub d: f32,
-    pub tx: f32,
-    pub ty: f32,
+    pub matrix: Matrix,
 }
 
 impl Transform {
@@ -56,17 +91,19 @@ impl Transform {
     ) -> Self {
         Self {
             time,
-            a: a.to_f32(),
-            b: b.to_f32(),
-            c: c.to_f32(),
-            d: d.to_f32(),
-            tx: tx.to_pixels() as f32,
-            ty: ty.to_pixels() as f32,
+            matrix: Matrix {
+                a: a.to_f32(),
+                b: b.to_f32(),
+                c: c.to_f32(),
+                d: d.to_f32(),
+                tx: tx.to_pixels() as f32,
+                ty: ty.to_pixels() as f32,
+            },
         }
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize, KeyFrame)]
 pub struct ColorTransform {
     pub time: f32,
     pub mult_color: [f32; 4],
@@ -81,7 +118,7 @@ impl ColorTransform {
         }
     }
 }
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize, KeyFrame)]
 pub struct BlendTransform {
     pub time: f32,
     pub blend_mode: BlendMode,
@@ -92,7 +129,7 @@ impl BlendTransform {
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize, KeyFrame)]
 pub struct FiltersTransform {
     pub time: f32,
     pub filters: Vec<Filter>,
@@ -104,21 +141,27 @@ impl FiltersTransform {
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
-pub struct Resource {
+#[derive(Default, Debug, Serialize, Deserialize, KeyFrame)]
+pub struct Placement {
     time: f32,
-    resource_id: CharacterId,
+    resource_id: Option<CharacterId>,
 }
 
-impl Resource {
-    fn new(time: f32, resource_id: CharacterId) -> Self {
+impl Placement {
+    pub fn resource_id(&self) -> Option<CharacterId> {
+        self.resource_id
+    }
+}
+
+impl Placement {
+    fn new(time: f32, resource_id: Option<CharacterId>) -> Self {
         Self { time, resource_id }
     }
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
-pub struct Placement {
-    pub resources: Vec<Resource>, // 资源变化
+pub struct DepthTimeline {
+    pub placement: Vec<Placement>, // 资源变化
     pub transforms: Vec<Transform>,
     #[serde(skip_serializing_if = "Vec::is_empty")] // 变换矩阵
     pub color_transforms: Vec<ColorTransform>, // 颜色变换
@@ -128,10 +171,10 @@ pub struct Placement {
     pub filters_transforms: Vec<FiltersTransform>, // 滤镜变换
 }
 
-impl Placement {
+impl DepthTimeline {
     pub fn new(time: f32, resource_id: CharacterId) -> Self {
         Self {
-            resources: vec![Resource::new(time, resource_id)],
+            placement: vec![Placement::new(time, Some(resource_id))],
             ..Default::default()
         }
     }
@@ -153,7 +196,7 @@ impl Event {
 pub struct Animation {
     pub name: String,
     pub duration: f32,
-    pub time_line: BTreeMap<Depth, Placement>,
+    pub timeline: BTreeMap<Depth, DepthTimeline>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub events: Vec<Event>,
 }
@@ -168,13 +211,16 @@ impl Animation {
 
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct MovieClip {
+    name: Option<String>,
     id: CharacterId,
     duration: f32,
-    time_line: BTreeMap<Depth, Placement>,
+    timeline: BTreeMap<Depth, DepthTimeline>,
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     skin_frames: HashMap<String, u32>,
     #[serde(skip_serializing_if = "String::is_empty")]
     default_skin: String,
+    #[serde(skip_serializing)]
+    pub current_time: f32,
 }
 impl MovieClip {
     fn new(id: CharacterId, duration: f32) -> Self {
@@ -184,11 +230,37 @@ impl MovieClip {
             ..Default::default()
         }
     }
-}
 
-#[derive(Debug, Serialize, Deserialize)]
-pub enum Definition {
-    MovieClip(MovieClip),
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    pub fn timeline(&self) -> &BTreeMap<Depth, DepthTimeline> {
+        &self.timeline
+    }
+
+    pub fn duration(&self) -> f32 {
+        self.duration
+    }
+
+    pub fn is_skin_frame(&self) -> bool {
+        !self.skin_frames.is_empty()
+    }
+
+    pub fn default_skip_frame(&self) -> u32 {
+        *self
+            .skin_frames
+            .get(&self.default_skin)
+            .expect("找不到就是有鬼")
+    }
+
+    pub fn skin_frame(&self, name: &str) -> Option<&u32> {
+        self.skin_frames.get(name)
+    }
+
+    pub fn skin_frames(&self) -> &HashMap<String, u32> {
+        &self.skin_frames
+    }
 }
 
 /// 新格式动画数据
@@ -197,7 +269,7 @@ pub struct Animations {
     /// 动画元数据
     pub meta: Meta,
     /// 资源定义
-    pub definitions: HashMap<CharacterId, Definition>,
+    pub children_clip: HashMap<CharacterId, MovieClip>,
     /// Key为动画名称，Value为动画数据
     pub animations: HashMap<String, Animation>,
 }
@@ -213,7 +285,13 @@ impl Animations {
 
 /// 解析flash动画为新格式，方便集成到游戏引擎中
 /// 接收`swf`文件二进制数据
-pub fn parse_flash_animation(data: Vec<u8>) -> Result<Animations> {
+pub fn parse_flash_animation(
+    data: Vec<u8>,
+) -> Result<(
+    Animations,
+    HashMap<CharacterId, Shape>,
+    HashMap<CharacterId, CompressedBitmap>,
+)> {
     // 将二进制数据转换为字节流
     let cursor = Cursor::new(data);
     let swf_buf = swf::decompress_swf(cursor)?;
@@ -232,13 +310,23 @@ pub fn parse_flash_animation(data: Vec<u8>) -> Result<Animations> {
         ..Default::default()
     };
 
+    let mut shapes = HashMap::new();
+    let mut bitmaps = HashMap::new();
     // 解析动画数据
     let mut animations = Animations::new(meta);
-    parse_animation_data(&mut animations, tags, frame_rate, swf_encoding);
+    parse_animation_data(
+        &mut animations,
+        &mut shapes,
+        &mut bitmaps,
+        tags,
+        frame_rate,
+        swf_encoding,
+    );
 
-    Ok(animations)
+    Ok((animations, shapes, bitmaps))
 }
 
+/// 输出动画数据到json文件
 pub fn output_json(
     animations: &Animations,
     is_pretty: bool,
@@ -263,7 +351,7 @@ pub fn output_json(
 fn parse_sprite_animation(
     sprite: swf::Sprite<'_>,
     frame_rate: f32,
-    definitions: &mut HashMap<CharacterId, Definition>,
+    children_clip: &mut HashMap<CharacterId, MovieClip>,
     swf_encoding: &'static Encoding,
 ) {
     let mut movie_clip = MovieClip::new(sprite.id, sprite.num_frames as f32 / frame_rate);
@@ -272,10 +360,16 @@ fn parse_sprite_animation(
         let time = current_frame as f32 / frame_rate;
         match tag {
             Tag::PlaceObject(place_object) => {
-                parse_place_object(&mut movie_clip.time_line, &place_object, time)
+                parse_place_object(
+                    &mut movie_clip.timeline,
+                    &place_object,
+                    time,
+                    children_clip,
+                    swf_encoding,
+                );
             }
             Tag::RemoveObject(remove_object) => {
-                remove_at_depth(&mut movie_clip.time_line, remove_object.depth, time);
+                remove_at_depth(&mut movie_clip.timeline, remove_object.depth, time);
             }
             Tag::ShowFrame => {
                 current_frame += 1;
@@ -287,7 +381,7 @@ fn parse_sprite_animation(
             _ => {}
         }
     }
-    definitions.insert(sprite.id, Definition::MovieClip(movie_clip));
+    children_clip.insert(sprite.id, movie_clip);
 }
 
 // 皮肤定义clip，将每一帧作为一个皮肤资源处理
@@ -304,23 +398,53 @@ fn parse_sprite_label(label: String, current_frame: u32, movie_clip: &mut MovieC
 /// 解析动画数据
 fn parse_animation_data(
     animations: &mut Animations,
+    shapes: &mut HashMap<CharacterId, Shape>,
+    bitmaps: &mut HashMap<CharacterId, CompressedBitmap>,
     tags: Vec<Tag<'_>>,
     frame_rate: f32,
     swf_encoding: &'static Encoding,
 ) {
     let mut current_frame: u32 = 0;
     let mut current_animation_name = String::from("default"); // 默认动画名称
-    let mut time = 0.0;
+    let mut time: f32;
     for tag in tags {
         // 将当前帧数转换为时间，单位为秒
         time = current_frame as f32 / frame_rate;
         match tag {
+            Tag::DefineShape(shape) => {
+                shapes.insert(shape.id, shape);
+            }
+            Tag::DefineBitsJpeg3(jpeg_data) => {
+                let (width, height) = decode_define_bits_jpeg_dimensions(jpeg_data.data).unwrap();
+                bitmaps.insert(
+                    jpeg_data.id,
+                    CompressedBitmap::Jpeg {
+                        data: jpeg_data.data.to_vec(),
+                        alpha: Some(jpeg_data.alpha_data.to_vec()),
+                        width,
+                        height,
+                    },
+                );
+            }
+            Tag::DefineBitsLossless(bit_loss_less) => {
+                bitmaps.insert(
+                    bit_loss_less.id,
+                    CompressedBitmap::Lossless(DefineBitsLossless {
+                        version: bit_loss_less.version,
+                        id: bit_loss_less.id,
+                        format: bit_loss_less.format,
+                        width: bit_loss_less.width,
+                        height: bit_loss_less.height,
+                        data: Cow::Owned(bit_loss_less.data.clone().into_owned()),
+                    }),
+                );
+            }
             Tag::DefineSprite(sprite) => {
                 // 解析子动画为引用资源
                 parse_sprite_animation(
                     sprite,
                     frame_rate,
-                    &mut animations.definitions,
+                    &mut animations.children_clip,
                     swf_encoding,
                 );
             }
@@ -330,11 +454,18 @@ fn parse_animation_data(
                     .animations
                     .entry(current_animation_name.clone())
                     .or_insert(Animation::new(current_animation_name.clone()));
-                parse_place_object(&mut animation.time_line, &place_object, time);
+                let children_clip = &mut animations.children_clip;
+                parse_place_object(
+                    &mut animation.timeline,
+                    &place_object,
+                    time,
+                    children_clip,
+                    swf_encoding,
+                );
             }
             Tag::RemoveObject(remove_object) => {
                 if let Some(animation) = animations.animations.get_mut(&current_animation_name) {
-                    remove_at_depth(&mut animation.time_line, remove_object.depth, time);
+                    remove_at_depth(&mut animation.timeline, remove_object.depth, time);
                 }
             }
             Tag::ShowFrame => {
@@ -354,6 +485,8 @@ fn parse_animation_data(
             _ => {}
         }
     }
+
+    time = current_frame as f32 / frame_rate;
     // 最后一个动画解析完成，为最后一个动画加上duration
     animations
         .animations
@@ -362,26 +495,44 @@ fn parse_animation_data(
 }
 
 fn parse_place_object(
-    time_line: &mut BTreeMap<u16, Placement>,
+    timeline: &mut BTreeMap<u16, DepthTimeline>,
     place_object: &PlaceObject,
     time: f32,
+    children_clip: &mut HashMap<CharacterId, MovieClip>,
+    swf_encoding: &'static Encoding,
 ) {
     match place_object.action {
         swf::PlaceObjectAction::Place(id) => {
-            let mut placement = Placement::new(time, id);
-            apply_place_object(&mut placement, place_object, time);
-            time_line.insert(place_object.depth, placement);
+            // 这里的id是会指向同一个definition资源对象的，所以对多次引用的childClip，会出现名称覆盖的情况，
+            // 我想这种复用的childClip 并不需要指定实例名
+            // 记录子影片实例名，
+            if let Some(clip_name) = place_object.name {
+                let name = clip_name.to_string_lossy(swf_encoding);
+                children_clip.get_mut(&id).map(|child_clip| {
+                    child_clip.name = Some(name);
+                });
+            }
+            let mut depth_timeline = timeline
+                .entry(place_object.depth)
+                .or_insert(DepthTimeline::default());
+
+            depth_timeline
+                .placement
+                .push(Placement::new(time, Some(id)));
+            apply_place_object(&mut depth_timeline, place_object, time);
         }
         swf::PlaceObjectAction::Modify => {
             // 修改对象
-            if let Some(placement) = time_line.get_mut(&place_object.depth) {
-                apply_place_object(placement, place_object, time);
+            if let Some(depth_timeline) = timeline.get_mut(&place_object.depth) {
+                apply_place_object(depth_timeline, place_object, time);
             }
         }
         swf::PlaceObjectAction::Replace(id) => {
-            if let Some(placement) = time_line.get_mut(&place_object.depth) {
-                placement.resources.push(Resource::new(time, id));
-                apply_place_object(placement, place_object, time);
+            if let Some(depth_timeline) = timeline.get_mut(&place_object.depth) {
+                depth_timeline
+                    .placement
+                    .push(Placement::new(time, Some(id)));
+                apply_place_object(depth_timeline, place_object, time);
             }
         }
     }
@@ -395,8 +546,8 @@ fn parse_label(
     time: f32,
     current_frame: &mut u32,
 ) {
-    // if label.starts_with("anim_") {
-    if label.is_ascii() {
+    if label.starts_with("anim_") {
+        // if label.is_ascii() {
         // 计算出当前动画的时长
         animations
             .get_mut(current_animation_name)
@@ -420,26 +571,32 @@ fn parse_label(
         );
     }
     if label.starts_with("event_") {
-        if let Some(animation) = animations.get_mut(current_animation_name) {
-            let event_name = label.trim_start_matches("event_");
-            animation
-                .events
-                .push(Event::new(time, event_name.to_owned()));
-        }
+        // 读取到事件标签时，当前动画可能还没有初始化
+        let animation = animations
+            .entry(current_animation_name.clone())
+            .or_insert(Animation::new(current_animation_name.to_owned()));
+        let event_name = label.trim_start_matches("event_");
+        animation
+            .events
+            .push(Event::new(time, event_name.to_owned()));
     }
     // 这里可以添加更多的解析逻辑
 }
 
-fn remove_at_depth(time_line: &mut BTreeMap<Depth, Placement>, depth: Depth, time: f32) {
+fn remove_at_depth(timeline: &mut BTreeMap<Depth, DepthTimeline>, depth: Depth, time: f32) {
     // 删除指定深度的对象
-    time_line.get_mut(&depth).map(|placement| {
-        placement.resources.push(Resource::new(time, 0));
+    timeline.get_mut(&depth).map(|depth_timeline| {
+        depth_timeline.placement.push(Placement::new(time, None));
     });
 }
 
-fn apply_place_object(placement: &mut Placement, place_object: &PlaceObject, current_time: f32) {
+fn apply_place_object(
+    depth_timeline: &mut DepthTimeline,
+    place_object: &PlaceObject,
+    current_time: f32,
+) {
     if let Some(matrix) = place_object.matrix {
-        placement.transforms.push(Transform::new(
+        depth_timeline.transforms.push(Transform::new(
             current_time,
             matrix.a,
             matrix.b,
@@ -451,7 +608,7 @@ fn apply_place_object(placement: &mut Placement, place_object: &PlaceObject, cur
     }
     if let Some(color_transform) = place_object.color_transform {
         // 处理颜色变换
-        placement.color_transforms.push(ColorTransform::new(
+        depth_timeline.color_transforms.push(ColorTransform::new(
             current_time,
             color_transform.mult_rgba_normalized(),
             color_transform.add_rgba_normalized(),
@@ -460,16 +617,18 @@ fn apply_place_object(placement: &mut Placement, place_object: &PlaceObject, cur
 
     if let Some(blend_mode) = place_object.blend_mode {
         // 处理混合模式
-        placement
+        depth_timeline
             .blend_transform
             .push(BlendTransform::new(current_time, blend_mode.into()));
     }
 
     if let Some(filters) = &place_object.filters {
         // 处理滤镜变换
-        placement.filters_transforms.push(FiltersTransform::new(
-            current_time,
-            filters.iter().map(Filter::from).collect(),
-        ));
+        depth_timeline
+            .filters_transforms
+            .push(FiltersTransform::new(
+                current_time,
+                filters.iter().map(Filter::from).collect(),
+            ));
     }
 }

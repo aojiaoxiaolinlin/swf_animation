@@ -772,6 +772,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "glam"
+version = "0.30.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf3aa70d918d2b234126ff4f850f628f172542bf0603ded26b8ee36e5e22d5f9"
+
+[[package]]
 name = "glow"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1029,6 +1035,9 @@ name = "jpeg-decoder"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f5d4a7da358eff58addd2877a45865158f0d78c911d43a5784ceb7bbf52833b0"
+dependencies = [
+ "rayon",
+]
 
 [[package]]
 name = "js-sys"
@@ -1791,11 +1800,21 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "enum-map",
+ "flate2",
+ "gif",
+ "glam",
+ "indexmap",
+ "jpeg-decoder",
+ "lyon_tessellation",
  "num-derive",
  "num-traits",
+ "png",
  "serde",
  "serde_json",
  "swf 0.2.2",
+ "swf_derive",
+ "thiserror 1.0.65",
+ "tracing",
 ]
 
 [[package]]
@@ -1997,6 +2016,15 @@ dependencies = [
  "num-derive",
  "num-traits",
  "simple_asn1",
+]
+
+[[package]]
+name = "swf_derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.100",
 ]
 
 [[package]]

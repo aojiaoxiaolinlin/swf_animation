@@ -50,6 +50,7 @@ impl From<swf::BlendMode> for BlendMode {
     }
 }
 
+/// 用于导出JSON数据
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Filter {
     DropShadowFilter(DropShadowFilter),
