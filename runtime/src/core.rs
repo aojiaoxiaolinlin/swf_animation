@@ -7,20 +7,17 @@ use std::{
 use anyhow::Result;
 use error::RuntimeError;
 use glam::Mat4;
-use swf::CharacterId;
+use swf::{CharacterId, Twips};
 
 use crate::parser::{
-    Animation, DepthTimeline, FiltersTransform, KeyFrame, Matrix, MovieClip, Transform,
-    types::{
-        BevelFilter, BlendMode, BlurFilter, ColorMatrixFilter, DropShadowFilter, Filter,
-        GlowFilter, GradientFilter,
-    },
+    Animation, DepthTimeline, KeyFrame, MovieClip, Transform, parse_shape::matrix::Matrix,
+    types::BlendMode,
 };
 
 use filter::Filter as RenderFilter;
 
 mod error;
-mod filter;
+pub mod filter;
 mod state_machine;
 
 type CompletionCallback = Box<dyn FnOnce() + Send + Sync + 'static>;
@@ -35,6 +32,8 @@ pub struct AnimationPlayer {
     animations: HashMap<String, Animation>,
     /// 动画子影片资源
     children_clip: HashMap<CharacterId, MovieClip>,
+    /// 活动的子影片存在同一个被多次使用的情况
+    active_clip: HashMap<String, MovieClip>,
     /// 运行时实例，扁平化结构
     active_instances: Vec<RuntimeInstance>,
 
@@ -74,7 +73,11 @@ impl AnimationPlayer {
         }
     }
 
-    pub fn update(&mut self, delta_time: f32) -> Result<()> {
+    pub fn update(
+        &mut self,
+        active_instances: &mut Vec<RuntimeInstance>,
+        delta_time: f32,
+    ) -> Result<()> {
         if !self.playing || self.current_animation_name.is_none() {
             return Ok(());
         }
@@ -97,6 +100,10 @@ impl AnimationPlayer {
         if self.current_time >= duration {
             if self.looping {
                 self.current_time = self.current_time % duration;
+                // 子动画也需要重置
+                self.active_clip.iter_mut().for_each(|(_, v)| {
+                    v.current_time = self.current_time;
+                });
                 looped = true;
             } else {
                 self.current_time = duration;
@@ -107,26 +114,31 @@ impl AnimationPlayer {
             }
         }
 
-        let children_clip = &mut self.children_clip;
+        let children_clip = &self.children_clip;
+        let active_clip = &mut self.active_clip;
         let current_skins = &mut self.current_skins;
 
         // 2.Instance Lifecycle & Property Updates (Iterate through Depths)
-        let mut active_instances = Vec::new();
-        let base_transform = Mat4::IDENTITY;
+        active_instances.clear();
+        let base_transform = Matrix::IDENTITY;
+        let base_color_transform = swf::ColorTransform::IDENTITY;
+        // 实例标识，用于防止重复生成
+        let id = "root";
         collect_current_time_active_shape(
+            id,
             &animation.timeline,
             previous_time,
             elapsed_time,
+            active_clip,
             children_clip,
             current_skins,
             self.frame_rate,
-            &mut active_instances,
+            active_instances,
             base_transform,
+            base_color_transform,
             BlendMode::Normal,
             Vec::new(),
         )?;
-
-        self.active_instances = active_instances;
 
         // 3.Frame Event Handle
         // 处理时间值精度问题
@@ -147,6 +159,10 @@ impl AnimationPlayer {
             on_completion();
         }
         Ok(())
+    }
+
+    pub fn active_instances(&self) -> &Vec<RuntimeInstance> {
+        &self.active_instances
     }
 
     pub fn set_play_animation(
@@ -170,17 +186,17 @@ impl AnimationPlayer {
         Ok(())
     }
 
-    pub fn set_skip(&mut self, part_name: &str, skip_name: &str) -> Result<()> {
-        let skip_name = skip_name.to_owned();
+    pub fn set_skin(&mut self, part_name: &str, skin_name: &str) -> Result<()> {
+        let skin_name = skin_name.to_owned();
         if let Some(target_skip) = self
             .get_skips()
             .iter()
             .find(|part_skips| part_skips.contains_key(part_name))
         {
-            if target_skip.get(part_name).unwrap().contains(&&skip_name) {
-                self.current_skins.insert(part_name.to_owned(), skip_name);
+            if target_skip.get(part_name).unwrap().contains(&&skin_name) {
+                self.current_skins.insert(part_name.to_owned(), skin_name);
             } else {
-                return Err(RuntimeError::SkinNotFound(skip_name).into());
+                return Err(RuntimeError::SkinNotFound(skin_name).into());
             }
         } else {
             return Err(RuntimeError::SkinPartNotFound(part_name.to_owned()).into());
@@ -282,56 +298,76 @@ impl AnimationPlayer {
 }
 
 fn collect_current_time_active_shape(
+    instance_id: &str,
     timeline: &BTreeMap<u16, DepthTimeline>,
     current_time: f32,
     elapsed_time: f32,
-    children_clip: &mut HashMap<CharacterId, MovieClip>,
+    active_clip: &mut HashMap<String, MovieClip>,
+    children_clip: &HashMap<CharacterId, MovieClip>,
     current_skins: &mut HashMap<String, String>,
     frame_rate: f32,
     active_instances: &mut Vec<RuntimeInstance>,
-    base_transform: Mat4,
-    blend_mode: BlendMode,
-    filters: Vec<RenderFilter>,
+    base_transform: Matrix,
+    base_color_transform: swf::ColorTransform,
+    base_blend_mode: BlendMode,
+    base_filters: Vec<RenderFilter>,
 ) -> Result<()> {
-    for (_, depth_timeline) in timeline {
+    for (depth, depth_timeline) in timeline {
         let placements = &depth_timeline.placement;
-        let (Some(start), _) = find_key_frame(current_time, placements) else {
+        let (Some(start_placement), end_placement) = find_key_frame(current_time, placements)
+        else {
             continue;
         };
 
-        let start_keyframe = depth_timeline.placement.get(start).unwrap();
+        let start_keyframe = placements.get(start_placement).unwrap();
         if let Some(id) = start_keyframe.resource_id() {
+            // 唯一标识
+            let instance_id = format!("{}_{}", instance_id, depth);
+
             let transforms = &depth_timeline.transforms;
             // 既然start存在那么transform一定存在
-            let (transform_start_index, transform_end_index) =
-                find_key_frame(current_time, transforms);
-            let transform = transforms_lerp(
-                transform_start_index.expect("transform 必须存在、否则这会是一个Bug"),
-                transform_end_index,
-                transforms,
-                current_time,
-            );
+            let (start, end) = find_key_frame(current_time, transforms);
+            // TODO: 补帧出现变换异常
+            // let transform = match end_placement {
+            //     // 如果后一帧是空针，不需要插值计算，所在帧切换了资源图也不插帧
+            //     Some(index)
+            //         if placements.get(index).unwrap().resource_id().is_none()
+            //             || placements.get(index).unwrap().resource_id().unwrap() != id =>
+            //     {
+            //         transforms.get(start.unwrap()).unwrap().matrix
+            //     }
+            //     _ => lerp_transform(
+            //         start.expect("transform 必须存在、否则这会是一个Bug"),
+            //         end,
+            //         transforms,
+            //         current_time,
+            //     ),
+            // };
+            let transform: Matrix = transforms.get(start.unwrap()).unwrap().matrix;
+            let current_transform = base_transform * transform;
 
-            let current_transform = base_transform.mul_mat4(&transform);
+            // 颜色变换
+            let color_transform = start_keyframe.color_transform().color_transform;
+            let current_color_transform = base_color_transform * color_transform;
 
-            if let Some(mut child_clip) = children_clip.remove(&id) {
-                // 混合模式只能添加在影片上
-                let blend_transforms = &depth_timeline.blend_transform;
-                let blend_mode =
-                    if let (Some(start), _) = find_key_frame(current_time, blend_transforms) {
-                        blend_transforms
-                            .get(start)
-                            .expect("获取混合模式有Bug")
-                            .blend_mode
-                    } else {
-                        BlendMode::Normal
-                    };
+            if let Some(child_clip) = children_clip.get(&id) {
+                // 混合模式
+                let blend_mode = start_keyframe.blend_mode();
 
-                // 滤镜也只能添加到影片上
-                let filter_transforms = &depth_timeline.filters_transforms;
-                let (start, end) = find_key_frame(current_time, filter_transforms);
-                let mut filters = Vec::new();
-                lerp_filter(start, end, filter_transforms, current_time, &mut filters);
+                // 滤镜
+                let filters = start_keyframe
+                    .filters()
+                    .iter()
+                    .map(RenderFilter::from)
+                    .collect();
+
+                let clip_instance_id = format!("{}_{}", instance_id, id);
+                let mut child_clip = if let Some(child_clip) = active_clip.remove(&clip_instance_id)
+                {
+                    child_clip
+                } else {
+                    child_clip.clone()
+                };
 
                 // 判断是否是皮肤clip
                 let child_current_time = if child_clip.is_skin_frame() {
@@ -346,7 +382,7 @@ fn collect_current_time_active_shape(
                         }
                     } else {
                         // 没有设置皮肤，使用默认皮肤
-                        child_clip.default_skip_frame()
+                        child_clip.default_skin_frame()
                     };
                     // 计算对应帧对应的事件
                     skip_frame as f32 / frame_rate
@@ -355,14 +391,17 @@ fn collect_current_time_active_shape(
                 };
 
                 collect_current_time_active_shape(
+                    &instance_id,
                     child_clip.timeline(),
                     child_current_time,
                     elapsed_time,
+                    active_clip,
                     children_clip,
                     current_skins,
                     frame_rate,
                     active_instances,
                     current_transform,
+                    current_color_transform,
                     blend_mode,
                     filters,
                 )?;
@@ -370,14 +409,15 @@ fn collect_current_time_active_shape(
                 if child_clip.current_time >= child_clip.duration() {
                     child_clip.current_time = child_clip.current_time % child_clip.duration();
                 }
-                children_clip.insert(id, child_clip);
+                active_clip.insert(clip_instance_id, child_clip);
             } else {
                 // 记录这个child_movie找到的shape为当前活动实例，将每一帧的实例Shape扁平化输出，游戏引擎中迭代实在不方便
                 active_instances.push(RuntimeInstance::new(
                     id,
                     current_transform,
-                    blend_mode,
-                    filters.clone(),
+                    current_color_transform,
+                    base_blend_mode,
+                    base_filters.clone(),
                 ));
             }
         }
@@ -408,61 +448,78 @@ fn find_key_frame<T: KeyFrame>(time: f32, key_frames: &Vec<T>) -> (Option<usize>
 /// 在多个Shape合成的MovieClip上应用滤镜，需要一起渲染，
 #[derive(Debug, Default)]
 pub struct RuntimeInstance {
-    resource_id: CharacterId,
+    id: CharacterId,
 
     current_skin: Option<String>,
 
-    is_dirty: bool,
-
-    transform: Mat4,
+    transform: Matrix,
+    color_transform: swf::ColorTransform,
     blend: BlendMode,
     filters: Vec<RenderFilter>,
 }
 
 impl RuntimeInstance {
-    fn new(id: CharacterId, transform: Mat4, blend: BlendMode, filters: Vec<RenderFilter>) -> Self {
+    fn new(
+        id: CharacterId,
+        transform: Matrix,
+        color_transform: swf::ColorTransform,
+        blend: BlendMode,
+        filters: Vec<RenderFilter>,
+    ) -> Self {
         Self {
-            resource_id: id,
+            id,
             transform,
+            color_transform,
             blend,
             filters,
             ..Default::default()
         }
     }
 
-    fn update_instance_property(
-        &mut self,
-        current_time: f32,
-        depth_timeline: &crate::parser::DepthTimeline,
-    ) {
-        let transforms = &depth_timeline.transforms;
-        let (Some(start_index), end_index) = find_key_frame(current_time, transforms) else {
-            return;
-        };
-        // 更新transform
-        let transform = transforms_lerp(start_index, end_index, transforms, current_time);
+    pub fn id(&self) -> CharacterId {
+        self.id
+    }
+
+    pub fn blend(&self) -> BlendMode {
+        self.blend
+    }
+
+    pub fn transform(&self) -> Mat4 {
+        self.transform.into()
+    }
+
+    pub fn transform_matrix(&self) -> Matrix {
+        self.transform
+    }
+
+    pub fn color_transform(&self) -> swf::ColorTransform {
+        self.color_transform
+    }
+
+    pub fn filters_mut(&mut self) -> &mut Vec<RenderFilter> {
+        &mut self.filters
     }
 }
 
-fn transforms_lerp(
+fn lerp_transform(
     start_index: usize,
     end_index: Option<usize>,
     transform: &Vec<Transform>,
     current_time: f32,
-) -> Mat4 {
+) -> Matrix {
     let start = transform.get(start_index).unwrap();
 
     let matrix = if let Some(end_index) = end_index {
         let end = transform.get(end_index).unwrap();
-        &lerp_matrix(
+        lerp_matrix(
             &start.matrix,
             &end.matrix,
             calc_lerp_factor(start.time, end.time, current_time),
         )
     } else {
-        &start.matrix
+        start.matrix.clone()
     };
-    matrix.into()
+    matrix
 }
 
 /// 对两个 Matrix 进行线性插值
@@ -481,173 +538,12 @@ fn lerp_matrix(start: &Matrix, end: &Matrix, t: f32) -> Matrix {
         b: start.b + (end.b - start.b) * t,
         c: start.c + (end.c - start.c) * t,
         d: start.d + (end.d - start.d) * t,
-        tx: start.tx + (end.tx - start.tx) * t,
-        ty: start.ty + (end.ty - start.ty) * t,
-    }
-}
-
-fn lerp_filter<'a>(
-    start: Option<usize>,
-    end: Option<usize>,
-    filter_transforms: &[FiltersTransform],
-    current_time: f32,
-    res_filters: &'a mut Vec<RenderFilter>,
-) {
-    if let Some(start) = start {
-        let start_filters = &filter_transforms[start].filters;
-        if let Some(end) = end {
-            let end_filters = &filter_transforms[end].filters;
-
-            let t = calc_lerp_factor(
-                filter_transforms[start].time,
-                filter_transforms[end].time,
-                current_time,
-            );
-
-            if start_filters.len() == end_filters.len() {
-                for (start_filter, end_filter) in start_filters.iter().zip(end_filters) {
-                    match (start_filter, end_filter) {
-                        (Filter::BlurFilter(start_filter), Filter::BlurFilter(end_filter)) => {
-                            res_filters.push(RenderFilter::from(&Filter::BlurFilter(BlurFilter {
-                                blur_x: start_filter.blur_x
-                                    + (end_filter.blur_x - start_filter.blur_x) * t,
-                                blur_y: start_filter.blur_y
-                                    + (end_filter.blur_y - start_filter.blur_y) * t,
-                                flags: start_filter.flags,
-                            })));
-                        }
-                        (Filter::GlowFilter(start_filter), Filter::GlowFilter(end_filter)) => {
-                            res_filters.push(RenderFilter::from(&Filter::GlowFilter(GlowFilter {
-                                color: start_filter.color,
-                                blur_x: start_filter.blur_x
-                                    + (end_filter.blur_x - start_filter.blur_x) * t,
-                                blur_y: start_filter.blur_y
-                                    + (end_filter.blur_y - start_filter.blur_y) * t,
-                                strength: start_filter.strength
-                                    + (end_filter.strength - start_filter.strength) * t,
-                                flags: start_filter.flags,
-                            })));
-                        }
-                        (Filter::BevelFilter(start_filter), Filter::BevelFilter(end_filter)) => {
-                            res_filters.push(RenderFilter::from(&Filter::BevelFilter(
-                                BevelFilter {
-                                    shadow_color: start_filter.shadow_color,
-                                    highlight_color: start_filter.shadow_color,
-                                    blur_x: start_filter.blur_x
-                                        + (end_filter.blur_x - start_filter.blur_x) * t,
-                                    blur_y: start_filter.blur_y
-                                        + (end_filter.blur_y - start_filter.blur_y) * t,
-                                    angle: start_filter.angle
-                                        + (end_filter.angle - start_filter.angle) * t,
-                                    distance: start_filter.distance
-                                        + (end_filter.distance - start_filter.distance) * t,
-                                    strength: start_filter.strength
-                                        + (end_filter.strength - start_filter.strength) * t,
-                                    flags: start_filter.flags,
-                                },
-                            )));
-                        }
-                        (
-                            Filter::ColorMatrixFilter(start_filter),
-                            Filter::ColorMatrixFilter(end_filter),
-                        ) => {
-                            res_filters.push(RenderFilter::from(&Filter::ColorMatrixFilter(
-                                ColorMatrixFilter {
-                                    matrix: start_filter
-                                        .matrix
-                                        .iter()
-                                        .zip(end_filter.matrix)
-                                        .map(|(start, end)| start + (end - start) * t)
-                                        .collect::<Vec<_>>()
-                                        .try_into()
-                                        .unwrap(),
-                                },
-                            )));
-                        }
-                        (
-                            Filter::DropShadowFilter(start_filter),
-                            Filter::DropShadowFilter(end_filter),
-                        ) => {
-                            res_filters.push(RenderFilter::from(&Filter::DropShadowFilter(
-                                DropShadowFilter {
-                                    color: start_filter.color,
-                                    blur_x: start_filter.blur_x
-                                        + (end_filter.blur_x - start_filter.blur_x) * t,
-                                    blur_y: start_filter.blur_y
-                                        + (end_filter.blur_y - start_filter.blur_y) * t,
-                                    angle: start_filter.angle
-                                        + (end_filter.angle - start_filter.angle) * t,
-                                    distance: start_filter.distance
-                                        + (end_filter.distance - start_filter.distance) * t,
-                                    strength: start_filter.strength
-                                        + (end_filter.strength - start_filter.strength) * t,
-                                    flags: start_filter.flags,
-                                },
-                            )));
-                        }
-                        (
-                            Filter::GradientBevelFilter(start_filter),
-                            Filter::GradientBevelFilter(end_filter),
-                        ) => {
-                            res_filters.push(RenderFilter::from(&Filter::GradientBevelFilter(
-                                GradientFilter {
-                                    colors: start_filter.colors.clone(),
-                                    blur_x: start_filter.blur_x
-                                        + (end_filter.blur_x - start_filter.blur_x) * t,
-                                    blur_y: start_filter.blur_y
-                                        + (end_filter.blur_y - start_filter.blur_y) * t,
-                                    angle: start_filter.angle
-                                        + (end_filter.angle - start_filter.angle) * t,
-                                    distance: start_filter.distance
-                                        + (end_filter.distance - start_filter.distance) * t,
-                                    strength: start_filter.strength
-                                        + (end_filter.strength - start_filter.strength) * t,
-                                    flags: start_filter.flags,
-                                },
-                            )));
-                        }
-                        (
-                            Filter::GradientGlowFilter(start_filter),
-                            Filter::GradientGlowFilter(end_filter),
-                        ) => {
-                            res_filters.push(RenderFilter::from(&Filter::GradientGlowFilter(
-                                GradientFilter {
-                                    colors: start_filter.colors.clone(),
-                                    blur_x: start_filter.blur_x
-                                        + (end_filter.blur_x - start_filter.blur_x) * t,
-                                    blur_y: start_filter.blur_y
-                                        + (end_filter.blur_y - start_filter.blur_y) * t,
-                                    angle: start_filter.angle
-                                        + (end_filter.angle - start_filter.angle) * t,
-                                    distance: start_filter.distance
-                                        + (end_filter.distance - start_filter.distance) * t,
-                                    strength: start_filter.strength
-                                        + (end_filter.strength - start_filter.strength) * t,
-                                    flags: start_filter.flags,
-                                },
-                            )));
-                        }
-                        _ => {
-                            res_filters.append(
-                                &mut start_filters
-                                    .iter()
-                                    .map(|f| RenderFilter::from(f))
-                                    .filter(|f| !f.impotent())
-                                    .collect::<Vec<_>>(),
-                            );
-                            return;
-                        }
-                    }
-                }
-            }
-        }
-        res_filters.append(
-            &mut start_filters
-                .iter()
-                .map(|f| RenderFilter::from(f))
-                .filter(|f| !f.impotent())
-                .collect::<Vec<_>>(),
-        );
+        tx: Twips::from_pixels(
+            start.tx.to_pixels() + (end.tx.to_pixels() - start.tx.to_pixels()) * t as f64,
+        ),
+        ty: Twips::from_pixels(
+            start.ty.to_pixels() + (end.ty.to_pixels() - start.ty.to_pixels()) * t as f64,
+        ),
     }
 }
 

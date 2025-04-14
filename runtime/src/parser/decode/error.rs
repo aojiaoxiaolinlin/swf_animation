@@ -8,6 +8,9 @@ pub enum Error {
     #[error("Unknown bitmap format")]
     UnknownType,
 
+    #[error("Invalid ZLIB compression")]
+    InvalidZlibCompression,
+
     #[error("Invalid JPEG")]
     InvalidJpeg(#[from] jpeg_decoder::Error),
 
@@ -16,4 +19,10 @@ pub enum Error {
 
     #[error("Invalid GIF")]
     InvalidGif(#[from] gif::DecodingError),
+
+    #[error("Unsupported DefineBitsLossless{0} format {1:?}")]
+    UnsupportedLosslessFormat(u8, swf::BitmapFormat),
+
+    #[error("Empty GIF")]
+    EmptyGif,
 }

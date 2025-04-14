@@ -9,7 +9,7 @@ use std::{
 use anyhow::Result;
 use bitmap::CompressedBitmap;
 use decode::decode_define_bits_jpeg_dimensions;
-use glam::Mat4;
+use parse_shape::matrix::Matrix;
 use serde::{Deserialize, Serialize};
 use swf::{CharacterId, DefineBitsLossless, Depth, Encoding, PlaceObject, Shape, SwfStr, Tag};
 use swf_derive::KeyFrame;
@@ -25,7 +25,7 @@ pub mod types;
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// 新格式动画原信息
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Meta {
     pub frame_rate: f32,
     pub frames: u16,
@@ -46,34 +46,7 @@ pub trait KeyFrame {
     fn time(&self) -> f32;
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
-pub struct Matrix {
-    // ScaleX
-    pub a: f32,
-    // SkewX
-    pub b: f32,
-    // SkewY
-    pub c: f32,
-    // ScaleY
-    pub d: f32,
-    // TranslateX
-    pub tx: f32,
-    // TranslateY
-    pub ty: f32,
-}
-
-impl Into<Mat4> for &Matrix {
-    fn into(self) -> Mat4 {
-        Mat4::from_cols_array_2d(&[
-            [self.a, self.b, 0.0, 0.0],
-            [self.c, self.d, 0.0, 0.0],
-            [0.0, 0.0, 1.0, 0.0],
-            [self.tx, self.ty, 0.0, 1.0],
-        ])
-    }
-}
-
-#[derive(Default, Debug, Serialize, Deserialize, KeyFrame)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, KeyFrame)]
 pub struct Transform {
     pub time: f32,
     pub matrix: Matrix,
@@ -96,79 +69,86 @@ impl Transform {
                 b: b.to_f32(),
                 c: c.to_f32(),
                 d: d.to_f32(),
-                tx: tx.to_pixels() as f32,
-                ty: ty.to_pixels() as f32,
+                tx,
+                ty,
             },
         }
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize, KeyFrame)]
+#[derive(Default, Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct ColorTransform {
-    pub time: f32,
     pub mult_color: [f32; 4],
-    pub add_color: [f32; 4],
+    pub add_color: [i16; 4],
+    #[serde(skip)]
+    pub color_transform: swf::ColorTransform,
 }
+
+// TODO: 手动实现序列化和反序列化
+// impl<'de> Deserialize<'de> for ColorTransform {
+//     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+//     where
+//         D: serde::Deserializer<'de>,
+//     {
+//         str
+//     }
+// }
+
 impl ColorTransform {
-    fn new(time: f32, mult_color: [f32; 4], add_color: [f32; 4]) -> Self {
+    fn new(
+        color_transform: swf::ColorTransform,
+        mult_color: [f32; 4],
+        add_color: [i16; 4],
+    ) -> Self {
         Self {
-            time,
             mult_color,
             add_color,
+            color_transform,
         }
     }
 }
-#[derive(Default, Debug, Serialize, Deserialize, KeyFrame)]
-pub struct BlendTransform {
-    pub time: f32,
-    pub blend_mode: BlendMode,
-}
-impl BlendTransform {
-    fn new(time: f32, blend_mode: BlendMode) -> Self {
-        Self { time, blend_mode }
-    }
-}
 
-#[derive(Default, Debug, Serialize, Deserialize, KeyFrame)]
-pub struct FiltersTransform {
-    pub time: f32,
-    pub filters: Vec<Filter>,
-}
-
-impl FiltersTransform {
-    fn new(time: f32, filters: Vec<Filter>) -> Self {
-        Self { time, filters }
-    }
-}
-
-#[derive(Default, Debug, Serialize, Deserialize, KeyFrame)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, KeyFrame)]
 pub struct Placement {
     time: f32,
     resource_id: Option<CharacterId>,
+    blend_mode: BlendMode,
+    color_transform: ColorTransform,
+    filters: Vec<Filter>,
 }
 
 impl Placement {
     pub fn resource_id(&self) -> Option<CharacterId> {
         self.resource_id
     }
+
+    pub fn blend_mode(&self) -> BlendMode {
+        self.blend_mode
+    }
+
+    pub fn color_transform(&self) -> ColorTransform {
+        self.color_transform
+    }
+
+    pub fn filters(&self) -> &Vec<Filter> {
+        &self.filters
+    }
 }
 
 impl Placement {
     fn new(time: f32, resource_id: Option<CharacterId>) -> Self {
-        Self { time, resource_id }
+        Self {
+            time,
+            resource_id,
+            ..Default::default()
+        }
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct DepthTimeline {
     pub placement: Vec<Placement>, // 资源变化
     pub transforms: Vec<Transform>,
-    #[serde(skip_serializing_if = "Vec::is_empty")] // 变换矩阵
-    pub color_transforms: Vec<ColorTransform>, // 颜色变换
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub blend_transform: Vec<BlendTransform>, // 混合模式
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub filters_transforms: Vec<FiltersTransform>, // 滤镜变换
 }
 
 impl DepthTimeline {
@@ -180,7 +160,7 @@ impl DepthTimeline {
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct Event {
     pub time: f32,
     pub name: String,
@@ -192,7 +172,7 @@ impl Event {
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct Animation {
     pub name: String,
     pub duration: f32,
@@ -209,7 +189,7 @@ impl Animation {
     }
 }
 
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct MovieClip {
     name: Option<String>,
     id: CharacterId,
@@ -247,7 +227,7 @@ impl MovieClip {
         !self.skin_frames.is_empty()
     }
 
-    pub fn default_skip_frame(&self) -> u32 {
+    pub fn default_skin_frame(&self) -> u32 {
         *self
             .skin_frames
             .get(&self.default_skin)
@@ -264,7 +244,7 @@ impl MovieClip {
 }
 
 /// 新格式动画数据
-#[derive(Default, Debug, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize)]
 pub struct Animations {
     /// 动画元数据
     pub meta: Meta,
@@ -516,23 +496,31 @@ fn parse_place_object(
                 .entry(place_object.depth)
                 .or_insert(DepthTimeline::default());
 
-            depth_timeline
-                .placement
-                .push(Placement::new(time, Some(id)));
-            apply_place_object(&mut depth_timeline, place_object, time);
+            if let Some(last) = depth_timeline.placement.pop() {
+                if last.resource_id().is_some() || last.time != time {
+                    depth_timeline.placement.push(last);
+                }
+            }
+            let mut placement = Placement::new(time, Some(id));
+            apply_place_object(&mut depth_timeline, &mut placement, place_object, time);
+            depth_timeline.placement.push(placement);
         }
         swf::PlaceObjectAction::Modify => {
             // 修改对象
             if let Some(depth_timeline) = timeline.get_mut(&place_object.depth) {
-                apply_place_object(depth_timeline, place_object, time);
+                let mut placement = depth_timeline.placement.last_mut().unwrap().clone();
+                placement.time = time;
+                apply_place_object(depth_timeline, &mut placement, place_object, time);
+                depth_timeline.placement.push(placement);
             }
         }
         swf::PlaceObjectAction::Replace(id) => {
             if let Some(depth_timeline) = timeline.get_mut(&place_object.depth) {
-                depth_timeline
-                    .placement
-                    .push(Placement::new(time, Some(id)));
-                apply_place_object(depth_timeline, place_object, time);
+                let mut placement = depth_timeline.placement.last_mut().unwrap().clone();
+                placement.time = time;
+                placement.resource_id = Some(id);
+                apply_place_object(depth_timeline, &mut placement, place_object, time);
+                depth_timeline.placement.push(placement);
             }
         }
     }
@@ -592,6 +580,7 @@ fn remove_at_depth(timeline: &mut BTreeMap<Depth, DepthTimeline>, depth: Depth, 
 
 fn apply_place_object(
     depth_timeline: &mut DepthTimeline,
+    placement: &mut Placement,
     place_object: &PlaceObject,
     current_time: f32,
 ) {
@@ -608,27 +597,30 @@ fn apply_place_object(
     }
     if let Some(color_transform) = place_object.color_transform {
         // 处理颜色变换
-        depth_timeline.color_transforms.push(ColorTransform::new(
-            current_time,
-            color_transform.mult_rgba_normalized(),
-            color_transform.add_rgba_normalized(),
-        ));
+        placement.color_transform = ColorTransform::new(
+            color_transform,
+            [
+                color_transform.r_multiply.to_f32(),
+                color_transform.g_multiply.to_f32(),
+                color_transform.b_multiply.to_f32(),
+                color_transform.a_multiply.to_f32(),
+            ],
+            [
+                color_transform.r_add,
+                color_transform.g_add,
+                color_transform.b_add,
+                color_transform.a_add,
+            ],
+        );
     }
-
+    // TODO: 需要合并到transform 否则会会无法判断是否由混合模式
     if let Some(blend_mode) = place_object.blend_mode {
         // 处理混合模式
-        depth_timeline
-            .blend_transform
-            .push(BlendTransform::new(current_time, blend_mode.into()));
+        placement.blend_mode = blend_mode.into();
     }
 
     if let Some(filters) = &place_object.filters {
         // 处理滤镜变换
-        depth_timeline
-            .filters_transforms
-            .push(FiltersTransform::new(
-                current_time,
-                filters.iter().map(Filter::from).collect(),
-            ));
+        placement.filters = filters.iter().map(Filter::from).collect();
     }
 }

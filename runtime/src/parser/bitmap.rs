@@ -1,5 +1,7 @@
 use swf::DefineBitsLossless;
 
+use super::decode::{Bitmap, decode_define_bits_jpeg, decode_define_bits_lossless, error::Error};
+
 #[derive(Clone, Debug)]
 pub enum CompressedBitmap {
     Jpeg {
@@ -22,6 +24,17 @@ impl CompressedBitmap {
                 width: *width,
                 height: *height,
             },
+        }
+    }
+
+    pub fn decode(&self) -> Result<Bitmap, Error> {
+        match self {
+            CompressedBitmap::Jpeg { data, alpha, .. } => {
+                decode_define_bits_jpeg(data, alpha.as_deref())
+            }
+            CompressedBitmap::Lossless(define_bits_lossless) => {
+                decode_define_bits_lossless(define_bits_lossless)
+            }
         }
     }
 }

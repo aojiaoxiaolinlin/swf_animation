@@ -5,19 +5,25 @@ use tessellator::{Mesh, ShapeTessellator};
 
 use super::bitmap::CompressedBitmap;
 
-mod matrix;
-mod shape_utils;
+pub mod matrix;
+pub mod shape_utils;
 pub mod tessellator;
+
+pub struct Graphic {
+    pub shape: Shape,
+    pub lyon_mesh: Mesh,
+}
 
 pub fn parse_shape_and_bitmap(
     shapes: HashMap<CharacterId, Shape>,
-    bitmaps: HashMap<CharacterId, CompressedBitmap>,
-) -> HashMap<CharacterId, Mesh> {
-    let mut shape_library = HashMap::new();
+    bitmaps: &HashMap<CharacterId, CompressedBitmap>,
+) -> HashMap<CharacterId, Graphic> {
+    let mut graphics = HashMap::new();
     let mut tessellator = ShapeTessellator::new();
-    for (id, shape) in shapes.iter() {
-        let lyon_mesh = tessellator.tessellate_shape(shape.into(), &bitmaps);
-        shape_library.insert(*id, lyon_mesh);
+    for (id, shape) in shapes {
+        let distilled_shape = &shape;
+        let lyon_mesh = tessellator.tessellate_shape(distilled_shape.into(), bitmaps);
+        graphics.insert(id, Graphic { shape, lyon_mesh });
     }
-    shape_library
+    graphics
 }

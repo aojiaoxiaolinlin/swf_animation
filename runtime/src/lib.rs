@@ -1,5 +1,28 @@
+use std::collections::HashMap;
+
+use parser::{
+    Animations,
+    bitmap::CompressedBitmap,
+    parse_flash_animation,
+    parse_shape::{Graphic, parse_shape_and_bitmap},
+};
+use swf::CharacterId;
+
 pub mod core;
 pub mod parser;
+
+pub fn parse_animation(
+    data: Vec<u8>,
+) -> (
+    Animations,
+    HashMap<CharacterId, Graphic>,
+    HashMap<u16, CompressedBitmap>,
+) {
+    let (animations, shapes, bitmaps) =
+        parse_flash_animation(data).expect("Failed to parse SWF tag");
+    let graphics = parse_shape_and_bitmap(shapes, &bitmaps);
+    (animations, graphics, bitmaps)
+}
 
 #[cfg(test)]
 mod test {
@@ -15,7 +38,7 @@ mod test {
     #[test]
     fn test() -> Result<()> {
         // 模拟读取测试文件
-        let file_path = "C:\\Users\\linlin\\Desktop\\skin_test.swf";
+        let file_path = "D:\\Code\\Rust\\bevy_flash\\assets\\leiyi2.swf";
         let file = std::fs::File::open(file_path).expect("Failed to open test file");
         let mut reader = std::io::BufReader::new(file);
         let mut data = Vec::new();
@@ -28,21 +51,19 @@ mod test {
         // 写入输出文件
         output_json(&animations, true, "test", "")?;
 
-        // let shape_library = parse_shape_and_bitmap(shapes, bitmaps);
-
         // 运行时
-        let mut player = AnimationPlayer::new(
-            animations.animations,
-            animations.children_clip,
-            animations.meta.frame_rate,
-        );
-        player.set_play_animation(
-            "default",
-            false,
-            Some(Box::new(|| {
-                println!("播放完成");
-            })),
-        )?;
+        // let mut player = AnimationPlayer::new(
+        //     animations.animations,
+        //     animations.children_clip,
+        //     animations.meta.frame_rate,
+        // );
+        // player.set_play_animation(
+        //     "default",
+        //     false,
+        //     Some(Box::new(|| {
+        //         println!("播放完成");
+        //     })),
+        // )?;
 
         // player.register_frame_event("default", "attack".to_owned(), || {
         //     println!("触发attack事件");
@@ -64,10 +85,10 @@ mod test {
         //         .is_err()
         // );
 
-        player.set_skip("head", "5")?;
-        player.current_skins().iter().for_each(|(k, v)| {
-            dbg!(k, v);
-        });
+        // player.set_skin("head", "5")?;
+        // player.current_skins().iter().for_each(|(k, v)| {
+        //     dbg!(k, v);
+        // });
 
         // player.get_skips().iter().for_each(|skips| {
         //     skips.iter().for_each(|(part, skips_name)| {
@@ -77,12 +98,12 @@ mod test {
         //         });
         //     });
         // });
-
-        for i in 0..23 {
-            println!("第{}帧", i + 1);
-            // 得到的基本是正确的活动实例
-            player.update(1.0 / 30.0)?;
-        }
+        // let mut active_instances = Vec::new();
+        // for i in 0..23 {
+        //     println!("第{}帧", i + 1);
+        //     // 得到的基本是正确的活动实例
+        //     player.update(&mut active_instances, 1.0 / 30.0)?;
+        // }
         Ok(())
     }
 

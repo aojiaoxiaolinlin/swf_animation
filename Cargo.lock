@@ -599,6 +599,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "flash_an_runtime"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "enum-map",
+ "flate2",
+ "gif",
+ "glam",
+ "h263-rs-yuv 0.1.0",
+ "indexmap",
+ "jpeg-decoder",
+ "lyon_tessellation",
+ "num-derive",
+ "num-traits",
+ "png",
+ "serde",
+ "serde_json",
+ "swf 0.2.2",
+ "swf_derive",
+ "thiserror 1.0.65",
+ "tracing",
+]
+
+[[package]]
 name = "flate2"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -773,9 +797,9 @@ dependencies = [
 
 [[package]]
 name = "glam"
-version = "0.30.1"
+version = "0.29.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf3aa70d918d2b234126ff4f850f628f172542bf0603ded26b8ee36e5e22d5f9"
+checksum = "8babf46d4c1c9d92deac9f7be466f76dfc4482b6452fc5024b5e8daf6ffeb3ee"
 
 [[package]]
 name = "glow"
@@ -848,6 +872,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdf242682df893b86f33a73828fb09ca4b2d3bb6cc95249707fc684d27484b91"
 dependencies = [
  "bitflags 2.9.0",
+]
+
+[[package]]
+name = "h263-rs-yuv"
+version = "0.1.0"
+dependencies = [
+ "bytemuck",
+ "wide",
 ]
 
 [[package]]
@@ -1774,7 +1806,7 @@ dependencies = [
  "enum-map",
  "flate2",
  "gif",
- "h263-rs-yuv",
+ "h263-rs-yuv 0.1.0 (git+https://github.com/ruffle-rs/h263-rs?rev=f0fa94c366a1d0383df99aa835add175658d6bad)",
  "indexmap",
  "jpeg-decoder",
  "lyon",
@@ -1793,29 +1825,6 @@ dependencies = [
 name = "ruffle_wstr"
 version = "0.1.0"
 source = "git+https://github.com/ruffle-rs/ruffle.git?tag=nightly-2024-10-25#1cfb42059095da9a9695d09518ef77997a0cafa0"
-
-[[package]]
-name = "runtime"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "enum-map",
- "flate2",
- "gif",
- "glam",
- "indexmap",
- "jpeg-decoder",
- "lyon_tessellation",
- "num-derive",
- "num-traits",
- "png",
- "serde",
- "serde_json",
- "swf 0.2.2",
- "swf_derive",
- "thiserror 1.0.65",
- "tracing",
-]
 
 [[package]]
 name = "rustc-hash"

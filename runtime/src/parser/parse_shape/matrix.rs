@@ -1,9 +1,11 @@
+use glam::Mat4;
+use serde::{Deserialize, Serialize};
 use swf::{Fixed16, Point, PointDelta, Rectangle, Twips};
 
 // TODO: Consider using portable SIMD when it's stable (https://doc.rust-lang.org/std/simd/index.html).
 
 /// The transformation matrix used by Flash display objects.
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Matrix {
     /// Serialized as `scale_x` in SWF files
     pub a: f32,
@@ -18,11 +20,15 @@ pub struct Matrix {
     pub d: f32,
 
     /// Serialized as `transform_x` in SWF files
+    #[serde(skip)]
     pub tx: Twips,
 
     /// Serialized as `transform_y` in SWF files
+    #[serde(skip)]
     pub ty: Twips,
 }
+
+// TODO: 手动实现序列化和反序列化
 
 impl Matrix {
     pub const IDENTITY: Self = Self {
@@ -300,5 +306,21 @@ fn round_to_i32(f: f32) -> i32 {
     } else {
         // NaN/Infinity goes to 0.
         0
+    }
+}
+
+impl Into<Mat4> for Matrix {
+    fn into(self) -> Mat4 {
+        Mat4::from_cols_array_2d(&[
+            [self.a, self.b, 0.0, 0.0],
+            [self.c, self.d, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [
+                self.tx.to_pixels() as f32,
+                self.ty.to_pixels() as f32,
+                0.0,
+                1.0,
+            ],
+        ])
     }
 }

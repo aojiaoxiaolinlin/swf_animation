@@ -1,12 +1,12 @@
 [package]
-name = "runtime"
+name = "flash_an_runtime"
 version = "0.1.0"
 edition = "2024"
 
 
 [dependencies]
 swf_derive = { path = "../swf_derive" }
-
+h263-rs-yuv = { path = "../h263-rs/yuv" }
 swf = "0.2.2"
 jpeg-decoder = "0.3"
 png = "0.17"
@@ -14,7 +14,7 @@ gif = "0.13"
 flate2 = "1.1"
 lyon_tessellation = "1.0"
 indexmap = "2.2.6"
-glam = "0.30.1"
+glam = "0.29"
 
 
 anyhow = { workspace = true }
