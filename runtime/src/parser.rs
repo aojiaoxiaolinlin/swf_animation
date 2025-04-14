@@ -468,10 +468,9 @@ fn parse_animation_data(
 
     time = current_frame as f32 / frame_rate;
     // 最后一个动画解析完成，为最后一个动画加上duration
-    animations
-        .animations
-        .get_mut(&current_animation_name)
-        .map(|animation| animation.duration = time);
+    if let Some(animation) = animations.animations.get_mut(&current_animation_name) {
+        animation.duration = time
+    }
 }
 
 fn parse_place_object(
@@ -488,13 +487,11 @@ fn parse_place_object(
             // 记录子影片实例名，
             if let Some(clip_name) = place_object.name {
                 let name = clip_name.to_string_lossy(swf_encoding);
-                children_clip.get_mut(&id).map(|child_clip| {
+                if let Some(child_clip) = children_clip.get_mut(&id) {
                     child_clip.name = Some(name);
-                });
+                }
             }
-            let mut depth_timeline = timeline
-                .entry(place_object.depth)
-                .or_insert(DepthTimeline::default());
+            let depth_timeline = timeline.entry(place_object.depth).or_default();
 
             if let Some(last) = depth_timeline.placement.pop() {
                 if last.resource_id().is_some() || last.time != time {
@@ -502,7 +499,7 @@ fn parse_place_object(
                 }
             }
             let mut placement = Placement::new(time, Some(id));
-            apply_place_object(&mut depth_timeline, &mut placement, place_object, time);
+            apply_place_object(depth_timeline, &mut placement, place_object, time);
             depth_timeline.placement.push(placement);
         }
         swf::PlaceObjectAction::Modify => {
@@ -537,9 +534,9 @@ fn parse_label(
     if label.starts_with("anim_") {
         // if label.is_ascii() {
         // 计算出当前动画的时长
-        animations
-            .get_mut(current_animation_name)
-            .map(|animation| animation.duration = time);
+        if let Some(animation) = animations.get_mut(current_animation_name) {
+            animation.duration = time
+        }
 
         // 这是一个新动画标签，当前帧置为0
         *current_frame = 0;
@@ -573,9 +570,9 @@ fn parse_label(
 
 fn remove_at_depth(timeline: &mut BTreeMap<Depth, DepthTimeline>, depth: Depth, time: f32) {
     // 删除指定深度的对象
-    timeline.get_mut(&depth).map(|depth_timeline| {
+    if let Some(depth_timeline) = timeline.get_mut(&depth) {
         depth_timeline.placement.push(Placement::new(time, None));
-    });
+    }
 }
 
 fn apply_place_object(

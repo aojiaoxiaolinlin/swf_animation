@@ -564,7 +564,7 @@ fn generation_shape_image(
             sender.send(result).unwrap();
         });
 
-        device.poll(wgpu::Maintain::Wait);
+        device.poll(wgpu::PollType::Wait);
         let _ = receiver.recv().expect("MPSC channel must not fail");
         let data = buffer_slice.get_mapped_range();
 
@@ -862,7 +862,7 @@ fn create_render_pipeline(
         layout: Some(render_pipeline_layout),
         vertex: wgpu::VertexState {
             module: shader,
-            entry_point: "vertex",
+            entry_point: Some("vertex"),
             compilation_options: Default::default(),
             buffers: &[buffer],
         },
@@ -883,7 +883,7 @@ fn create_render_pipeline(
         },
         fragment: Some(wgpu::FragmentState {
             module: shader,
-            entry_point: "fragment",
+            entry_point: Some("fragment"),
             compilation_options: Default::default(),
             targets: &[Some(wgpu::ColorTargetState {
                 format: wgpu::TextureFormat::Rgba8UnormSrgb,

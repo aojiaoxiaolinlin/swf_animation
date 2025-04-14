@@ -26,8 +26,8 @@ pub struct ShapeTessellator {
     is_stroke: bool,
 }
 
-impl ShapeTessellator {
-    pub fn new() -> Self {
+impl Default for ShapeTessellator {
+    fn default() -> Self {
         Self {
             fill_tess: FillTessellator::new(),
             stroke_tess: StrokeTessellator::new(),
@@ -38,7 +38,9 @@ impl ShapeTessellator {
             is_stroke: false,
         }
     }
+}
 
+impl ShapeTessellator {
     pub fn tessellate_shape(
         &mut self,
         shape: DistilledShape,

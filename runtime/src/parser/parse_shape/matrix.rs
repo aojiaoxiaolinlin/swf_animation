@@ -309,15 +309,15 @@ fn round_to_i32(f: f32) -> i32 {
     }
 }
 
-impl Into<Mat4> for Matrix {
-    fn into(self) -> Mat4 {
+impl From<Matrix> for Mat4 {
+    fn from(value: Matrix) -> Self {
         Mat4::from_cols_array_2d(&[
-            [self.a, self.b, 0.0, 0.0],
-            [self.c, self.d, 0.0, 0.0],
+            [value.a, value.b, 0.0, 0.0],
+            [value.c, value.d, 0.0, 0.0],
             [0.0, 0.0, 1.0, 0.0],
             [
-                self.tx.to_pixels() as f32,
-                self.ty.to_pixels() as f32,
+                value.tx.to_pixels() as f32,
+                value.ty.to_pixels() as f32,
                 0.0,
                 1.0,
             ],

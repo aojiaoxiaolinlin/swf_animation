@@ -12,7 +12,7 @@ fn create_wgpu_instance() -> anyhow::Result<(wgpu::Instance, wgpu::Backends)> {
 }
 
 fn try_wgpu_backend(backends: wgpu::Backends) -> Option<wgpu::Instance> {
-    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+    let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         backends,
         flags: wgpu::InstanceFlags::default().with_env(),
         ..Default::default()
@@ -28,7 +28,6 @@ pub fn get_device_and_queue() -> anyhow::Result<(wgpu::Device, wgpu::Queue)> {
     let (instance, backend) = create_wgpu_instance()?;
 
     let (_adapter, device, queue) = futures::executor::block_on(request_adapter_and_device(
-        backend,
         &instance,
         None,
         wgpu::PowerPreference::HighPerformance,
@@ -41,7 +40,6 @@ pub fn get_device_and_queue() -> anyhow::Result<(wgpu::Device, wgpu::Queue)> {
 type Error = Box<dyn std::error::Error>;
 
 pub async fn request_adapter_and_device(
-    backend: wgpu::Backends,
     instance: &wgpu::Instance,
     surface: Option<&wgpu::Surface<'static>>,
     power_preference: wgpu::PowerPreference,
@@ -53,13 +51,8 @@ pub async fn request_adapter_and_device(
             force_fallback_adapter: false,
         })
         .await
-        .ok_or_else(|| {
-            let names = get_backend_names(backend);
-            if names.is_empty() {
-                "没有找到适配器".to_string()
-            } else {
-                format!("没有找到适配器，可用适配器：{}", names.join(", "))
-            }
+        .inspect_err(|e| {
+            eprintln!("请求适配器失败: {:?}", e);
         })?;
 
     let mut features = Default::default();
@@ -77,37 +70,13 @@ pub async fn request_adapter_and_device(
     }
 
     let (device, queue) = adapter
-        .request_device(
-            &wgpu::DeviceDescriptor {
-                label: Some("设备"),
-                required_features: features,
-                required_limits: wgpu::Limits::default(),
-                memory_hints: Default::default(),
-            },
-            None,
-        )
+        .request_device(&wgpu::DeviceDescriptor {
+            label: Some("设备"),
+            required_features: features,
+            required_limits: wgpu::Limits::default(),
+            memory_hints: Default::default(),
+            trace: wgpu::Trace::Off,
+        })
         .await?;
     Ok((adapter, device, queue))
-}
-
-pub fn get_backend_names(backends: wgpu::Backends) -> Vec<&'static str> {
-    let mut names = Vec::new();
-
-    if backends.contains(wgpu::Backends::VULKAN) {
-        names.push("Vulkan");
-    }
-    if backends.contains(wgpu::Backends::DX12) {
-        names.push("DirectX 12");
-    }
-    if backends.contains(wgpu::Backends::METAL) {
-        names.push("Metal");
-    }
-    if backends.contains(wgpu::Backends::GL) {
-        names.push("Open GL");
-    }
-    if backends.contains(wgpu::Backends::BROWSER_WEBGPU) {
-        names.push("Web GPU");
-    }
-
-    names
 }

@@ -19,7 +19,7 @@ pub fn parse_shape_and_bitmap(
     bitmaps: &HashMap<CharacterId, CompressedBitmap>,
 ) -> HashMap<CharacterId, Graphic> {
     let mut graphics = HashMap::new();
-    let mut tessellator = ShapeTessellator::new();
+    let mut tessellator = ShapeTessellator::default();
     for (id, shape) in shapes {
         let distilled_shape = &shape;
         let lyon_mesh = tessellator.tessellate_shape(distilled_shape.into(), bitmaps);

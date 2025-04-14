@@ -187,9 +187,9 @@ impl BitmapFormat {
         match self {
             BitmapFormat::Rgb => width * height * 3,
             BitmapFormat::Rgba => width * height * 4,
-            BitmapFormat::Yuv420p => width * height + ((width + 1) / 2) * ((height + 1) / 2) * 2,
+            BitmapFormat::Yuv420p => width * height + ((width + 1) / 2) * (height.div_ceil(2)) * 2,
             BitmapFormat::Yuva420p => {
-                width * height * 2 + ((width + 1) / 2) * ((height + 1) / 2) * 2
+                width * height * 2 + width.div_ceil(2) * (height.div_ceil(2)) * 2
             }
         }
     }
