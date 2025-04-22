@@ -165,6 +165,10 @@ impl AnimationPlayer {
         &self.active_instances
     }
 
+    pub fn animation_names(&self) -> Vec<&String> {
+        self.animations.keys().collect::<Vec<_>>()
+    }
+
     pub fn set_play_animation(
         &mut self,
         name: &str,
@@ -451,7 +455,6 @@ pub struct RuntimeInstance {
     id: CharacterId,
 
     current_skin: Option<String>,
-
     transform: Matrix,
     color_transform: swf::ColorTransform,
     blend: BlendMode,
