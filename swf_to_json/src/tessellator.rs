@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use indexmap::IndexSet;
 use lyon_tessellation::math::Point;
 use lyon_tessellation::{
-    path::Path, BuffersBuilder, FillOptions, FillTessellator, StrokeOptions, StrokeTessellator,
-    VertexBuffers,
+    BuffersBuilder, FillOptions, FillTessellator, StrokeOptions, StrokeTessellator, VertexBuffers,
+    path::Path,
 };
 use lyon_tessellation::{FillVertex, FillVertexConstructor, StrokeVertex, StrokeVertexConstructor};
 use ruffle_render::matrix::Matrix;

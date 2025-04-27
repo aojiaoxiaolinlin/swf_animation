@@ -564,7 +564,7 @@ fn generation_shape_image(
             sender.send(result).unwrap();
         });
 
-        device.poll(wgpu::PollType::Wait);
+        let _ = device.poll(wgpu::PollType::Wait);
         let _ = receiver.recv().expect("MPSC channel must not fail");
         let data = buffer_slice.get_mapped_range();
 

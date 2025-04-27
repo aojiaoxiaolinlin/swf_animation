@@ -36,7 +36,7 @@ impl Bitmap {
         }
     }
 
-    pub fn to_rgb(mut self) -> Self {
+    pub fn into_rgb(mut self) -> Self {
         // Converts this bitmap to RGB, if it is not already.
         match self.format {
             BitmapFormat::Rgb => {} // no-op
@@ -62,7 +62,7 @@ impl Bitmap {
         self
     }
 
-    pub fn to_rgba(mut self) -> Self {
+    pub fn into_rgba(mut self) -> Self {
         // Converts this bitmap to RGBA, if it is not already.
         match self.format {
             BitmapFormat::Rgb => {
@@ -120,14 +120,14 @@ impl Bitmap {
 
     pub fn chroma_width(&self) -> u32 {
         match self.format {
-            BitmapFormat::Yuv420p | BitmapFormat::Yuva420p => (self.width + 1) / 2,
+            BitmapFormat::Yuv420p | BitmapFormat::Yuva420p => self.width.div_ceil(2),
             _ => unreachable!("Can't get chroma width for non-YUV bitmap"),
         }
     }
 
     pub fn chroma_height(&self) -> u32 {
         match self.format {
-            BitmapFormat::Yuv420p | BitmapFormat::Yuva420p => (self.height + 1) / 2,
+            BitmapFormat::Yuv420p | BitmapFormat::Yuva420p => self.height.div_ceil(2),
             _ => unreachable!("Can't get chroma height for non-YUV bitmap"),
         }
     }
@@ -187,7 +187,7 @@ impl BitmapFormat {
         match self {
             BitmapFormat::Rgb => width * height * 3,
             BitmapFormat::Rgba => width * height * 4,
-            BitmapFormat::Yuv420p => width * height + ((width + 1) / 2) * (height.div_ceil(2)) * 2,
+            BitmapFormat::Yuv420p => width * height + width.div_ceil(2) * (height.div_ceil(2)) * 2,
             BitmapFormat::Yuva420p => {
                 width * height * 2 + width.div_ceil(2) * (height.div_ceil(2)) * 2
             }

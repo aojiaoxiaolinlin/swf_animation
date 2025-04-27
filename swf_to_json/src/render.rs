@@ -25,7 +25,7 @@ fn try_wgpu_backend(backends: wgpu::Backends) -> Option<wgpu::Instance> {
 }
 
 pub fn get_device_and_queue() -> anyhow::Result<(wgpu::Device, wgpu::Queue)> {
-    let (instance, backend) = create_wgpu_instance()?;
+    let (instance, _backend) = create_wgpu_instance()?;
 
     let (_adapter, device, queue) = futures::executor::block_on(request_adapter_and_device(
         &instance,

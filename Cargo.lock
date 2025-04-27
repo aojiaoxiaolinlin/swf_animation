@@ -561,7 +561,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "flash_an_runtime"
+name = "flash_runtime"
 version = "0.1.0"
 dependencies = [
  "anyhow",

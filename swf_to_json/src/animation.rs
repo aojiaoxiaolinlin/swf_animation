@@ -186,7 +186,7 @@ pub fn generation_animation(
         output.join(format!("{}.json", file_name.first().unwrap())),
     )?);
     // 二进制格式写入animation.an文件
-    serde_json::to_writer_pretty(writer, &vector_animation)?;
+    serde_json::to_writer(writer, &vector_animation)?;
     let mut buf = Vec::new();
     // 1.
     // vector_animation.serialize(&mut Serializer::new(&mut buf))?;

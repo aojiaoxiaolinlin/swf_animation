@@ -73,13 +73,9 @@ impl AnimationPlayer {
         }
     }
 
-    pub fn update(
-        &mut self,
-        active_instances: &mut Vec<RuntimeInstance>,
-        delta_time: f32,
-    ) -> Result<()> {
+    pub fn update(&mut self, active_instances: &mut Vec<RuntimeInstance>, delta_time: f32) {
         if !self.playing || self.current_animation_name.is_none() {
-            return Ok(());
+            return;
         }
 
         let animation_name = self.current_animation_name.as_ref().unwrap().clone();
@@ -89,22 +85,17 @@ impl AnimationPlayer {
         let elapsed_time = delta_time * self.speed;
         self.current_time += elapsed_time;
 
-        let animation = self
-            .animations
-            .get(&animation_name)
-            .ok_or(RuntimeError::AnimationNotFound(animation_name))?;
+        let animation = self.animations.get(&animation_name).unwrap();
         let duration = animation.duration;
         let mut on_completion = None;
 
-        let mut looped = false;
         if self.current_time >= duration {
             if self.looping {
-                self.current_time = self.current_time % duration;
+                self.current_time %= duration;
                 // 子动画也需要重置
                 self.active_clip.iter_mut().for_each(|(_, v)| {
                     v.current_time = self.current_time;
                 });
-                looped = true;
             } else {
                 self.current_time = duration;
                 self.playing = false;
@@ -138,7 +129,8 @@ impl AnimationPlayer {
             base_color_transform,
             BlendMode::Normal,
             Vec::new(),
-        )?;
+        )
+        .unwrap();
 
         // 3.Frame Event Handle
         // 处理时间值精度问题
@@ -158,7 +150,6 @@ impl AnimationPlayer {
         if let Some(on_completion) = on_completion {
             on_completion();
         }
-        Ok(())
     }
 
     pub fn active_instances(&self) -> &Vec<RuntimeInstance> {
@@ -169,6 +160,10 @@ impl AnimationPlayer {
         self.animations.keys().collect::<Vec<_>>()
     }
 
+    /// 设置播放动画
+    /// - name 动画名
+    /// - looping 是否循环播放
+    /// - on_completion 回调事件
     pub fn set_play_animation(
         &mut self,
         name: &str,
@@ -190,6 +185,9 @@ impl AnimationPlayer {
         Ok(())
     }
 
+    /// 设置皮肤
+    /// - part_name 部位名
+    /// - skin_name 皮肤名
     pub fn set_skin(&mut self, part_name: &str, skin_name: &str) -> Result<()> {
         let skin_name = skin_name.to_owned();
         if let Some(target_skip) = self
@@ -318,7 +316,7 @@ fn collect_current_time_active_shape(
 ) -> Result<()> {
     for (depth, depth_timeline) in timeline {
         let placements = &depth_timeline.placement;
-        let (Some(start_placement), end_placement) = find_key_frame(current_time, placements)
+        let (Some(start_placement), _end_placement) = find_key_frame(current_time, placements)
         else {
             continue;
         };
@@ -330,7 +328,7 @@ fn collect_current_time_active_shape(
 
             let transforms = &depth_timeline.transforms;
             // 既然start存在那么transform一定存在
-            let (start, end) = find_key_frame(current_time, transforms);
+            let (start, _end) = find_key_frame(current_time, transforms);
             // TODO: 补帧出现变换异常
             // let transform = match end_placement {
             //     // 如果后一帧是空针，不需要插值计算，所在帧切换了资源图也不插帧
@@ -359,11 +357,13 @@ fn collect_current_time_active_shape(
                 let blend_mode = start_keyframe.blend_mode();
 
                 // 滤镜
-                let filters = start_keyframe
+                let mut filters: Vec<RenderFilter> = start_keyframe
                     .filters()
                     .iter()
                     .map(RenderFilter::from)
                     .collect();
+
+                filters.append(&mut base_filters.clone());
 
                 let clip_instance_id = format!("{}_{}", instance_id, id);
                 let mut child_clip = if let Some(child_clip) = active_clip.remove(&clip_instance_id)
@@ -411,7 +411,7 @@ fn collect_current_time_active_shape(
                 )?;
                 child_clip.current_time += elapsed_time;
                 if child_clip.current_time >= child_clip.duration() {
-                    child_clip.current_time = child_clip.current_time % child_clip.duration();
+                    child_clip.current_time %= child_clip.duration();
                 }
                 active_clip.insert(clip_instance_id, child_clip);
             } else {
@@ -429,7 +429,7 @@ fn collect_current_time_active_shape(
     Ok(())
 }
 
-fn find_key_frame<T: KeyFrame>(time: f32, key_frames: &Vec<T>) -> (Option<usize>, Option<usize>) {
+fn find_key_frame<T: KeyFrame>(time: f32, key_frames: &[T]) -> (Option<usize>, Option<usize>) {
     match key_frames.binary_search_by(|k| k.time().partial_cmp(&time).unwrap_or(Ordering::Less)) {
         // 刚好相等
         Ok(index) => (Some(index), None),
@@ -453,8 +453,6 @@ fn find_key_frame<T: KeyFrame>(time: f32, key_frames: &Vec<T>) -> (Option<usize>
 #[derive(Debug, Default)]
 pub struct RuntimeInstance {
     id: CharacterId,
-
-    current_skin: Option<String>,
     transform: Matrix,
     color_transform: swf::ColorTransform,
     blend: BlendMode,
@@ -475,7 +473,6 @@ impl RuntimeInstance {
             color_transform,
             blend,
             filters,
-            ..Default::default()
         }
     }
 
@@ -507,7 +504,7 @@ impl RuntimeInstance {
 fn lerp_transform(
     start_index: usize,
     end_index: Option<usize>,
-    transform: &Vec<Transform>,
+    transform: &[Transform],
     current_time: f32,
 ) -> Matrix {
     let start = transform.get(start_index).unwrap();
@@ -520,7 +517,7 @@ fn lerp_transform(
             calc_lerp_factor(start.time, end.time, current_time),
         )
     } else {
-        start.matrix.clone()
+        start.matrix
     };
     matrix
 }

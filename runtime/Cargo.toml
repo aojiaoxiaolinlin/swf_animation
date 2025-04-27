@@ -1,5 +1,5 @@
 [package]
-name = "flash_an_runtime"
+name = "flash_runtime"
 version = "0.1.0"
 edition = "2024"
 
@@ -13,10 +13,9 @@ png = "0.17"
 gif = "0.13"
 flate2 = "1.1"
 lyon_tessellation = "1.0"
-indexmap = "2.2.6"
 glam = "0.29"
 
-
+indexmap = { workspace = true }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

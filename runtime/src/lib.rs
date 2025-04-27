@@ -38,7 +38,7 @@ mod test {
     #[test]
     fn test() -> Result<()> {
         // 模拟读取测试文件
-        let file_path = "D:\\Code\\Rust\\bevy_flash\\assets\\leiyi2.swf";
+        let file_path = "D:\\Code\\Rust\\bevy_flash\\assets\\spirit2619src.swf";
         let file = std::fs::File::open(file_path).expect("Failed to open test file");
         let mut reader = std::io::BufReader::new(file);
         let mut data = Vec::new();
@@ -52,18 +52,18 @@ mod test {
         output_json(&animations, true, "test", "")?;
 
         // 运行时
-        // let mut player = AnimationPlayer::new(
-        //     animations.animations,
-        //     animations.children_clip,
-        //     animations.meta.frame_rate,
-        // );
-        // player.set_play_animation(
-        //     "default",
-        //     false,
-        //     Some(Box::new(|| {
-        //         println!("播放完成");
-        //     })),
-        // )?;
+        let mut player = AnimationPlayer::new(
+            animations.animations,
+            animations.children_clip,
+            animations.meta.frame_rate,
+        );
+        player.set_play_animation(
+            "default",
+            false,
+            Some(Box::new(|| {
+                println!("播放完成");
+            })),
+        )?;
 
         // player.register_frame_event("default", "attack".to_owned(), || {
         //     println!("触发attack事件");
@@ -101,14 +101,8 @@ mod test {
         // let mut active_instances = Vec::new();
         // for i in 0..23 {
         //     println!("第{}帧", i + 1);
-        //     // 得到的基本是正确的活动实例
         //     player.update(&mut active_instances, 1.0 / 30.0)?;
         // }
         Ok(())
-    }
-
-    #[test]
-    fn test_e() {
-        println!("{}", 1.0e-5);
     }
 }
