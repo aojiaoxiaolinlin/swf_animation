@@ -2,7 +2,10 @@
 name = "flash_runtime"
 version = "0.1.0"
 edition = "2024"
-
+authors = ["傲娇小霖霖"]
+description = "A simple flash animation runtime"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/aojiaoxiaolinlin/swf_animation"
 
 [dependencies]
 swf_derive = { path = "../swf_derive" }
