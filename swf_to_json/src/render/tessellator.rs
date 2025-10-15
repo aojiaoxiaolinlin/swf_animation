@@ -7,15 +7,12 @@ use lyon_tessellation::{
     path::Path,
 };
 use lyon_tessellation::{FillVertex, FillVertexConstructor, StrokeVertex, StrokeVertexConstructor};
-use ruffle_render::matrix::Matrix;
-use ruffle_render::{
-    shape_utils::{DistilledShape, DrawCommand, DrawPath, GradientType},
-    tessellator::{Bitmap, Draw, DrawType, Gradient, Mesh, Vertex},
-};
-use swf::CharacterId;
-use tracing::error;
 
-use crate::bitmap::CompressedBitmap;
+use swf::CharacterId;
+
+use super::bitmap::CompressedBitmap;
+use super::matrix::Matrix;
+use super::shape_utils::{DistilledShape, DrawCommand, DrawPath, GradientType};
 
 pub struct ShapeTessellator {
     fill_tess: FillTessellator,
@@ -27,8 +24,8 @@ pub struct ShapeTessellator {
     is_stroke: bool,
 }
 
-impl ShapeTessellator {
-    pub fn new() -> Self {
+impl Default for ShapeTessellator {
+    fn default() -> Self {
         Self {
             fill_tess: FillTessellator::new(),
             stroke_tess: StrokeTessellator::new(),
@@ -39,7 +36,9 @@ impl ShapeTessellator {
             is_stroke: false,
         }
     }
+}
 
+impl ShapeTessellator {
     pub fn tessellate_shape(
         &mut self,
         shape: DistilledShape,
@@ -210,7 +209,7 @@ impl ShapeTessellator {
                 }
                 Err(e) => {
                     // This may simply be a degenerate path.
-                    error!("Tessellation failure: {:?}", e);
+                    tracing::error!("Tessellation failure: {:?}", e);
                 }
             }
         }
@@ -245,6 +244,55 @@ impl ShapeTessellator {
     }
 }
 
+pub struct Mesh {
+    pub draws: Vec<Draw>,
+    pub gradients: Vec<Gradient>,
+}
+
+pub struct Draw {
+    pub draw_type: DrawType,
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<u32>,
+    #[allow(unused)]
+    pub mask_index_count: u32,
+}
+
+pub enum DrawType {
+    Color,
+    Gradient {
+        matrix: [[f32; 3]; 3],
+        gradient: usize,
+    },
+    Bitmap(Bitmap),
+}
+
+#[derive(Clone, Debug, Hash, Eq, PartialEq)]
+pub struct Gradient {
+    pub gradient_type: GradientType,
+    pub repeat_mode: swf::GradientSpread,
+    pub focal_point: swf::Fixed8,
+    pub interpolation: swf::GradientInterpolation,
+    pub records: Vec<swf::GradientRecord>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Vertex {
+    pub x: f32,
+    pub y: f32,
+    pub color: swf::Color,
+}
+
+#[derive(Clone, Debug)]
+pub struct Bitmap {
+    pub matrix: [[f32; 3]; 3],
+    pub bitmap_id: u16,
+    /// 设置Sampler 为Repeat 或者 Clamp
+    #[allow(unused)]
+    pub is_smoothed: bool,
+    #[allow(unused)]
+    pub is_repeating: bool,
+}
+
 fn ruffle_path_to_lyon_path(commands: &[DrawCommand], is_closed: bool) -> Path {
     fn point(point: swf::Point<swf::Twips>) -> Point {
         Point::new(point.x.to_pixels() as f32, point.y.to_pixels() as f32)
@@ -271,16 +319,6 @@ fn ruffle_path_to_lyon_path(commands: &[DrawCommand], is_closed: bool) -> Path {
                     builder.begin(point(cursor));
                 }
                 builder.quadratic_bezier_to(point(*control), point(*anchor));
-            }
-            DrawCommand::CubicCurveTo {
-                control_a,
-                control_b,
-                anchor,
-            } => {
-                if let Some(cursor) = cursor.take() {
-                    builder.begin(point(cursor));
-                }
-                builder.cubic_bezier_to(point(*control_a), point(*control_b), point(*anchor));
             }
         }
     }

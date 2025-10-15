@@ -1,19 +1,12 @@
-use std::collections::HashMap;
+pub(crate) mod decoder;
 
-use ruffle_render::bitmap::BitmapSize;
-use swf::{CharacterId, DefineBitsLossless};
+use swf::DefineBitsLossless;
 
-pub struct BitmapLib {
-    bitmap: HashMap<CharacterId, CompressedBitmap>,
-}
+use crate::render::bitmap::decoder::{
+    Bitmap, decode_define_bits_jpeg, decode_define_bits_lossless, error::Error,
+};
 
-impl BitmapLib {
-    pub fn get_bitmap(&self, id: CharacterId) -> Option<&CompressedBitmap> {
-        self.bitmap.get(&id)
-    }
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum CompressedBitmap {
     Jpeg {
         data: Vec<u8>,
@@ -38,14 +31,19 @@ impl CompressedBitmap {
         }
     }
 
-    pub fn decode(&self) -> Result<ruffle_render::bitmap::Bitmap, ruffle_render::error::Error> {
+    pub fn decode(&self) -> Result<Bitmap, Error> {
         match self {
             CompressedBitmap::Jpeg { data, alpha, .. } => {
-                ruffle_render::utils::decode_define_bits_jpeg(data, alpha.as_deref())
+                decode_define_bits_jpeg(data, alpha.as_deref())
             }
             CompressedBitmap::Lossless(define_bits_lossless) => {
-                ruffle_render::utils::decode_define_bits_lossless(define_bits_lossless)
+                decode_define_bits_lossless(define_bits_lossless)
             }
         }
     }
+}
+
+pub struct BitmapSize {
+    pub width: u16,
+    pub height: u16,
 }

@@ -1,5 +1,7 @@
-use ruffle_render::{shape_utils::GradientType, tessellator::Gradient};
 use swf::GradientSpread;
+use wgpu::util::DeviceExt;
+
+use crate::render::{shape_utils::GradientType, tessellator::Gradient};
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
@@ -69,5 +71,41 @@ impl From<Gradient> for GradientUniform {
                 GradientSpread::Repeat => 3,
             },
         }
+    }
+}
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct ViewMatrix {
+    pub matrix: [[f32; 4]; 4],
+}
+
+impl ViewMatrix {
+    pub fn bind_group(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        width: f32,
+        height: f32,
+    ) -> wgpu::BindGroup {
+        let view_matrix = [
+            [2.0 / width, 0.0, 0.0, 0.0],
+            [0.0, -2.0 / height, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [-1.0, 1.0, 0.0, 1.0],
+        ];
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("View Matrix Buffer"),
+            contents: bytemuck::cast_slice(&[view_matrix]),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("View Matrix Bind Group"),
+            layout,
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+        })
     }
 }

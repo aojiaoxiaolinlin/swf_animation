@@ -1,91 +1,293 @@
-use filter::Filter;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, HashMap},
-    fs::File,
-    io::{BufWriter, Write},
-    path::Path,
-};
+use std::{borrow::Cow, collections::BTreeMap, mem};
 
-use swf::{CharacterId, Depth, Encoding, Tag};
-mod filter;
+use swf::{CharacterId, Encoding, Tag};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct VectorAnimation {
+use crate::{render::filter::Filter, shape::Offset};
+
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct FlashAnimation {
+    meta: Meta,
+    animations: BTreeMap<String, FrameRange>,
+    events: BTreeMap<u16, String>,
+    root: Vec<Vec<Command>>,
+    children: BTreeMap<CharacterId, Mc>,
+    shape_offset: BTreeMap<CharacterId, Offset>,
+}
+impl FlashAnimation {
+    fn new(to_string: String, frame_rate: u16) -> Self {
+        Self {
+            meta: Meta {
+                name: to_string,
+                frame_rate,
+                version: VERSION.to_string(),
+            },
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct Meta {
     name: String,
     frame_rate: u16,
-    shape_transform: BTreeMap<CharacterId, (f32, f32)>,
-    base_animations: HashMap<CharacterId, Animation>,
-    animations: BTreeMap<String, Animation>,
+    version: String,
 }
 
-impl VectorAnimation {
-    pub fn new(name: String, frame_rate: u16) -> Self {
-        Self {
-            name,
-            frame_rate,
-            shape_transform: BTreeMap::new(),
-            base_animations: HashMap::new(),
-            animations: BTreeMap::new(),
-        }
-    }
-    pub fn add_animation(&mut self, label: &String, animation: Animation) {
-        self.animations.insert(label.to_owned(), animation);
-    }
-    pub fn animation(&mut self, label: &String) -> &mut Animation {
-        self.animations.entry(label.to_owned()).or_default()
-    }
-    fn register_base_animation(&mut self, id: CharacterId, animation: Animation) {
-        self.base_animations.insert(id, animation);
-    }
+#[derive(Debug, Default, Deserialize, Serialize)]
+pub struct FrameRange {
+    start_frame: u16,
+    end_frame: u16,
 }
-#[derive(Default, Serialize, Deserialize, Debug, Clone)]
-pub struct Animation {
-    timelines: BTreeMap<Depth, Vec<Frame>>,
-    total_frames: u16,
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum Mc {
+    Skin {
+        name: String,
+        skins: BTreeMap<String, CharacterId>,
+        commands: Vec<Vec<Command>>,
+    },
+    Commands(Vec<Vec<Command>>),
 }
-impl Animation {
-    fn timelines(&mut self) -> &mut BTreeMap<Depth, Vec<Frame>> {
-        &mut self.timelines
-    }
-    fn timeline(&mut self, depth: Depth) -> &mut Vec<Frame> {
-        self.timelines.get_mut(&depth).unwrap()
-    }
-    fn insert_or_get_timeline(&mut self, depth: Depth) -> &mut Vec<Frame> {
-        self.timelines.entry(depth).or_default()
-    }
-    fn set_total_frame(&mut self, total_frame: u16) {
-        self.total_frames = total_frame;
+
+impl Default for Mc {
+    fn default() -> Self {
+        Self::Commands(Vec::new())
     }
 }
 
-#[derive(Clone, Default, Serialize, Deserialize, Debug)]
-pub struct Frame {
-    id: CharacterId,
-    place_frame: u16,
-    duration: u16,
-    transform: Transform,
-    blend_mode: BlendMode,
-    filters: Vec<Filter>,
+pub fn parse_animations(
+    tags: Vec<Tag>,
+    shape_offset: BTreeMap<CharacterId, Offset>,
+    file_name: &str,
+    frame_rate: u16,
+    total_frame: u16,
+    encoding_for_version: &'static Encoding,
+) -> anyhow::Result<FlashAnimation> {
+    let mut flash_animation = FlashAnimation::new(file_name.to_string(), frame_rate);
+    let mut symbol_classes = BTreeMap::new();
+    convert_root_place_object(
+        &mut flash_animation,
+        &mut symbol_classes,
+        &tags,
+        encoding_for_version,
+    );
+    flash_animation.shape_offset = shape_offset;
+    calc_animation_frame_range(&mut flash_animation.animations, total_frame);
+    convert_child_place_object(
+        &mut flash_animation.children,
+        &mut symbol_classes,
+        tags,
+        encoding_for_version,
+    );
+
+    Ok(flash_animation)
 }
 
-impl Frame {
-    pub fn new(id: CharacterId, place_frame: u16) -> Self {
-        Self {
-            id,
-            place_frame,
-            ..Default::default()
+fn calc_animation_frame_range(animations: &mut BTreeMap<String, FrameRange>, total_frame: u16) {
+    let mut frame_range = animations.values_mut().collect::<Vec<_>>();
+    frame_range.sort_by_key(|e| e.start_frame);
+    for i in 0..frame_range.len() - 1 {
+        frame_range[i].end_frame = frame_range[i + 1].start_frame - 1;
+    }
+    frame_range.last_mut().unwrap().end_frame = total_frame;
+}
+
+fn convert_root_place_object(
+    flash_animation: &mut FlashAnimation,
+    symbol_classes: &mut BTreeMap<CharacterId, String>,
+    tags: &Vec<Tag>,
+    encoding_for_version: &'static Encoding,
+) {
+    let animations = &mut flash_animation.animations;
+    let commands = &mut flash_animation.root;
+    let events = &mut flash_animation.events;
+
+    let mut animation_name = Cow::from("Default");
+    let mut current_frame = 1;
+    let mut frame = Vec::new();
+    for tag in tags {
+        match tag {
+            Tag::PlaceObject(place_object) => {
+                if &animation_name == "Default" {
+                    animations.insert(
+                        animation_name.to_string(),
+                        FrameRange {
+                            start_frame: current_frame,
+                            end_frame: current_frame,
+                        },
+                    );
+                }
+                frame.push(Command::PlaceObject(place_object.into()));
+            }
+            Tag::RemoveObject(remove_object) => {
+                frame.push(Command::RemoveObject(remove_object.into()));
+            }
+            Tag::ShowFrame => {
+                current_frame += 1;
+                commands.push(mem::take(&mut frame));
+            }
+            Tag::FrameLabel(frame_label) => {
+                let label = frame_label.label.to_str_lossy(encoding_for_version);
+                if let Some(event_name) = label.strip_prefix("event_") {
+                    events.insert(current_frame, event_name.to_string());
+                } else {
+                    if let Some(anim_name) = label.strip_prefix("anim_") {
+                        animation_name = Cow::Owned(anim_name.to_string());
+                    } else {
+                        animation_name = Cow::Owned(label.to_string());
+                    }
+                    animations.insert(
+                        animation_name.to_string(),
+                        FrameRange {
+                            start_frame: current_frame,
+                            end_frame: current_frame,
+                        },
+                    );
+                }
+            }
+            Tag::SymbolClass(symbol_class) => {
+                if let Some(first) = symbol_class.first() {
+                    symbol_classes.insert(
+                        first.id,
+                        first.class_name.to_string_lossy(encoding_for_version),
+                    );
+                }
+            }
+            _ => {}
         }
     }
-    // 用于补齐空帧
-    fn space_frame(duration: u16) -> Self {
+}
+
+fn convert_child_place_object(
+    children: &mut BTreeMap<CharacterId, Mc>,
+    symbol_classes: &mut BTreeMap<CharacterId, String>,
+    tags: Vec<Tag>,
+    encoding_for_version: &'static Encoding,
+) {
+    tags.into_iter()
+        .filter_map(|tag| match tag {
+            Tag::DefineSprite(sprite) => Some(sprite),
+            _ => None,
+        })
+        .for_each(|sprite| {
+            let part_name = if let Some(name) = symbol_classes.get(&sprite.id) {
+                name.strip_prefix("Skin")
+            } else {
+                None
+            };
+            let mut current_frame = 1;
+            let mut commands = Vec::new();
+            let mut skins = BTreeMap::new();
+            let mut frame = Vec::new();
+            for tag in sprite.tags {
+                match tag {
+                    Tag::PlaceObject(place_object) => {
+                        frame.push(Command::PlaceObject((&place_object).into()));
+                    }
+                    Tag::RemoveObject(remove_object) => {
+                        frame.push(Command::RemoveObject((&remove_object).into()));
+                    }
+                    Tag::ShowFrame => {
+                        current_frame += 1;
+                        commands.push(mem::take(&mut frame));
+                    }
+                    Tag::FrameLabel(frame_label) => {
+                        let label = frame_label.label.to_str_lossy(encoding_for_version);
+                        if let Some(skin_name) = label.strip_prefix("skin_") {
+                            skins.insert(skin_name.to_string(), current_frame);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            // 根据是否有名字来决定使用哪个变体
+            let mc = if let Some(part_name) = part_name {
+                Mc::Skin {
+                    name: part_name.to_string(),
+                    skins,
+                    commands,
+                }
+            } else {
+                Mc::Commands(commands)
+            };
+            children.insert(sprite.id, mc);
+        });
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Command {
+    PlaceObject(PlaceObject),
+    RemoveObject(RemoveObject),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlaceObject {
+    depth: u16,
+    action: PlaceObjectAction,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    matrix: Option<Matrix>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ratio: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    clip_depth: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    color_transform: Option<ColorTransform>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    blend_mode: Option<BlendMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    filters: Option<Vec<Filter>>,
+}
+
+impl From<&Box<swf::PlaceObject<'_>>> for PlaceObject {
+    fn from(value: &Box<swf::PlaceObject<'_>>) -> Self {
         Self {
-            duration,
-            ..Default::default()
+            depth: value.depth,
+            action: PlaceObjectAction::from(value.action),
+            matrix: value.matrix.map(Into::into),
+            ratio: value.ratio,
+            clip_depth: value.clip_depth,
+            color_transform: value.color_transform.map(Into::into),
+            blend_mode: value.blend_mode.map(BlendMode::from_swf_blend_mode),
+            filters: value
+                .filters
+                .as_ref()
+                .map(|filters| filters.iter().map(Into::into).collect()),
         }
     }
-    pub fn auto_add(&mut self) {
-        self.duration += 1;
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+enum PlaceObjectAction {
+    Place(CharacterId),
+    Modify,
+    Replace(CharacterId),
+}
+
+impl From<swf::PlaceObjectAction> for PlaceObjectAction {
+    fn from(value: swf::PlaceObjectAction) -> Self {
+        match value {
+            swf::PlaceObjectAction::Place(id) => Self::Place(id),
+            swf::PlaceObjectAction::Modify => Self::Modify,
+            swf::PlaceObjectAction::Replace(id) => Self::Replace(id),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RemoveObject {
+    pub depth: u16,
+    pub character_id: Option<CharacterId>,
+}
+
+impl From<&swf::RemoveObject> for RemoveObject {
+    fn from(value: &swf::RemoveObject) -> Self {
+        Self {
+            depth: value.depth,
+            character_id: value.character_id,
+        }
     }
 }
 
@@ -103,10 +305,33 @@ pub struct Matrix {
     pub tx: f32,
     pub ty: f32,
 }
+
+impl From<swf::Matrix> for Matrix {
+    fn from(value: swf::Matrix) -> Self {
+        Self {
+            a: value.a.to_f32(),
+            b: value.b.to_f32(),
+            c: value.c.to_f32(),
+            d: value.d.to_f32(),
+            tx: value.tx.to_pixels() as f32,
+            ty: value.ty.to_pixels() as f32,
+        }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct ColorTransform {
     mult_color: [f32; 4],
     add_color: [f32; 4],
+}
+
+impl From<swf::ColorTransform> for ColorTransform {
+    fn from(value: swf::ColorTransform) -> Self {
+        Self {
+            mult_color: value.mult_rgba_normalized(),
+            add_color: value.add_rgba_normalized(),
+        }
+    }
 }
 
 impl Default for ColorTransform {
@@ -156,273 +381,4 @@ impl BlendMode {
             swf::BlendMode::HardLight => Self::HardLight,
         }
     }
-}
-
-// 生成动画文件
-pub fn generation_animation(
-    tags: Vec<Tag>,
-    shape_transform: BTreeMap<CharacterId, (f32, f32)>,
-    file_name: &str,
-    output: &Path,
-    frame_rate: u16,
-    encoding_for_version: &'static Encoding,
-) -> anyhow::Result<()> {
-    let file_name: Vec<&str> = file_name.split(".").collect();
-    let mut vector_animation =
-        VectorAnimation::new(file_name.first().unwrap().to_string(), frame_rate);
-    vector_animation.shape_transform = shape_transform;
-    tags.iter().for_each(|tag| {
-        if let Tag::DefineSprite(sprite) = tag {
-            parse_sprite_animation_as_base_animation(&mut vector_animation, sprite);
-        }
-    });
-
-    parse_animation(&mut vector_animation, tags, encoding_for_version);
-
-    // 清除空白帧
-    clear_blank_frame(&mut vector_animation);
-    // 写入animation.json文件
-    let writer = BufWriter::new(File::create(
-        output.join(format!("{}.json", file_name.first().unwrap())),
-    )?);
-    // 二进制格式写入animation.an文件
-    serde_json::to_writer(writer, &vector_animation)?;
-    let mut buf = Vec::new();
-    // 1.
-    // vector_animation.serialize(&mut Serializer::new(&mut buf))?;
-    // 2. 更高效？
-    let mut serializer =
-        rmp_serde::Serializer::new(&mut buf).with_bytes(rmp_serde::config::BytesMode::ForceAll);
-    // 写入animation.an文件
-    vector_animation.serialize(&mut serializer)?;
-    File::create(output.join("animation.an"))?.write_all(&buf)?;
-    Ok(())
-}
-
-fn parse_animation(
-    vector_animation: &mut VectorAnimation,
-    tags: Vec<Tag>,
-    encoding_for_version: &'static Encoding,
-) {
-    let mut animation_name = String::from("");
-    let mut current_frame = 0;
-    for tag in tags {
-        match tag {
-            Tag::PlaceObject(place_object) => match place_object.action {
-                swf::PlaceObjectAction::Place(id) => {
-                    //  保证第一帧有标签区分不同的动画，如果没有设置则视为只有一个动画，将其命名为default
-                    if animation_name.is_empty() {
-                        animation_name = String::from("default");
-                        vector_animation.add_animation(&animation_name, Animation::default());
-                    }
-                    add_timeline(
-                        vector_animation.animation(&animation_name),
-                        &place_object,
-                        id,
-                        current_frame,
-                    );
-                }
-                swf::PlaceObjectAction::Modify => {
-                    modify_at_depth(
-                        vector_animation.animation(&animation_name),
-                        &place_object,
-                        current_frame,
-                    );
-                }
-                swf::PlaceObjectAction::Replace(id) => {
-                    replace_at_depth(
-                        vector_animation
-                            .animation(&animation_name)
-                            .timeline(place_object.depth),
-                        &place_object,
-                        id,
-                        current_frame,
-                    );
-                }
-            },
-            Tag::RemoveObject(remove_object) => {
-                remove_at_depth(
-                    vector_animation
-                        .animation(&animation_name)
-                        .timeline(remove_object.depth),
-                );
-            }
-            Tag::ShowFrame => {
-                current_frame += 1;
-                vector_animation
-                    .animation(&animation_name)
-                    .timelines()
-                    .iter_mut()
-                    .for_each(|(_, timeline)| {
-                        let late_frame = timeline.last_mut().unwrap();
-                        late_frame.auto_add();
-                    });
-            }
-            Tag::FrameLabel(frame_label) => {
-                if !vector_animation.animations.is_empty() {
-                    // 此时当前动画结束，开始下一个动画，记录总帧数
-                    let animation = vector_animation.animation(&animation_name);
-                    animation.set_total_frame(current_frame);
-                    // 下一个标签定义的动画可能是在当前动画的基础上修改的，所以需要复制当前动画的最后一帧，这种情况出现在动画设计时没有做子动画，所有动画都在根时间轴上
-                    let mut new_animation = animation.clone();
-                    new_animation
-                        .timelines
-                        .iter_mut()
-                        .for_each(|(_, timeline)| {
-                            let mut last_frame = timeline.last().unwrap().clone();
-                            timeline.clear();
-                            last_frame.duration = 0;
-                            last_frame.place_frame = 0;
-                            timeline.push(last_frame);
-                        });
-                    current_frame = 0;
-                    animation_name = frame_label.label.to_string_lossy(encoding_for_version);
-                    vector_animation.add_animation(&animation_name, new_animation);
-                } else {
-                    current_frame = 0;
-                    animation_name = frame_label.label.to_string_lossy(encoding_for_version);
-                    vector_animation.add_animation(&animation_name, Animation::default());
-                }
-            }
-            _ => {
-                continue;
-            }
-        }
-    }
-    // 最后一个动画结束，记录总帧数
-    vector_animation
-        .animation(&animation_name)
-        .set_total_frame(current_frame);
-}
-
-/// 解析DefineSprite标签动画，这个动画被解析为基础动画
-fn parse_sprite_animation_as_base_animation(
-    vector_animation: &mut VectorAnimation,
-    sprite: &swf::Sprite,
-) {
-    let mut current_frame = 0;
-    let mut animation = Animation::default();
-    animation.set_total_frame(sprite.num_frames);
-    for tag in sprite.tags.iter() {
-        match tag {
-            Tag::PlaceObject(place_object) => match place_object.action {
-                swf::PlaceObjectAction::Place(id) => {
-                    add_timeline(&mut animation, place_object, id, current_frame);
-                }
-                swf::PlaceObjectAction::Modify => {
-                    modify_at_depth(&mut animation, place_object, current_frame);
-                }
-                swf::PlaceObjectAction::Replace(id) => {
-                    replace_at_depth(
-                        animation.timeline(place_object.depth),
-                        place_object,
-                        id,
-                        current_frame,
-                    );
-                }
-            },
-            Tag::RemoveObject(remove_object) => {
-                remove_at_depth(animation.timeline(remove_object.depth));
-            }
-            Tag::ShowFrame => {
-                current_frame += 1;
-                animation.timelines().iter_mut().for_each(|(_, timeline)| {
-                    let late_frame = timeline.last_mut().unwrap();
-                    late_frame.auto_add();
-                });
-            }
-            _ => {
-                continue;
-            }
-        }
-    }
-    vector_animation.register_base_animation(sprite.id, animation);
-}
-
-fn add_timeline(
-    animation: &mut Animation,
-    place_object: &swf::PlaceObject,
-    id: CharacterId,
-    current_frame: u16,
-) {
-    let timeline = animation.insert_or_get_timeline(place_object.depth);
-    // 补齐空白帧
-    let frame_delta = current_frame - timeline.iter().map(|frame| frame.duration).sum::<u16>();
-    if frame_delta > 0 {
-        timeline.push(Frame::space_frame(current_frame - timeline.len() as u16));
-    }
-    let mut frame = Frame::new(id, current_frame);
-    apply_place_object(&mut frame, place_object);
-    timeline.push(frame);
-}
-
-fn apply_place_object(frame: &mut Frame, place_object: &swf::PlaceObject) {
-    if let Some(matrix) = place_object.matrix {
-        frame.transform.matrix = Matrix {
-            a: matrix.a.to_f32(),
-            b: matrix.b.to_f32(),
-            c: matrix.c.to_f32(),
-            d: matrix.d.to_f32(),
-            tx: matrix.tx.to_pixels() as f32,
-            ty: matrix.ty.to_pixels() as f32,
-        };
-    }
-
-    if let Some(color_transform) = place_object.color_transform {
-        frame.transform.color_transform = ColorTransform {
-            mult_color: color_transform.mult_rgba_normalized(),
-            add_color: color_transform.add_rgba_normalized(),
-        };
-    }
-
-    if let Some(blend_mode) = place_object.blend_mode {
-        frame.blend_mode = BlendMode::from_swf_blend_mode(blend_mode);
-    }
-
-    if let Some(filters) = &place_object.filters {
-        frame.filters = filters.iter().map(Filter::from).collect();
-    }
-}
-
-fn replace_at_depth(
-    timeline: &mut Vec<Frame>,
-    place_object: &swf::PlaceObject,
-    id: CharacterId,
-    current_frame: u16,
-) {
-    let mut frame = timeline.last_mut().unwrap().clone();
-    frame.id = id;
-    frame.place_frame = current_frame;
-    frame.duration = 0;
-    apply_place_object(&mut frame, place_object);
-    timeline.push(frame);
-}
-
-fn remove_at_depth(timeline: &mut Vec<Frame>) {
-    // 设置为空白帧 （即不显示任何内容）默认Id为0是空白帧
-    timeline.push(Frame::new(CharacterId::default(), 0));
-}
-
-fn clear_blank_frame(vector_animation: &mut VectorAnimation) {
-    let clear = |animation: &mut Animation| {
-        animation
-            .timelines()
-            .iter_mut()
-            .for_each(|(_, timeline)| timeline.retain(|frame| frame.id != 0));
-    };
-    vector_animation.animations.values_mut().for_each(clear);
-
-    vector_animation
-        .base_animations
-        .values_mut()
-        .for_each(clear)
-}
-
-fn modify_at_depth(animation: &mut Animation, place_object: &swf::PlaceObject, current_frame: u16) {
-    let timeline = animation.insert_or_get_timeline(place_object.depth);
-    let mut frame = timeline.last_mut().unwrap().clone();
-    frame.place_frame = current_frame;
-    frame.duration = 0;
-    apply_place_object(&mut frame, place_object);
-    timeline.push(frame);
 }
